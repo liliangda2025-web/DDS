@@ -193,11 +193,11 @@ class KnowledgeEntryServiceTest {
     @Test
     void shouldTranslateConcurrentDuplicateKeyToBusinessException() {
         KnowledgeEntryCreateRequest request = createRequest("DRAWING", "DWG-NEW-001", "V1.0");
-        // 第一次检查尚不存在；模拟另一事务抢先插入后，异常兜底检查能够看到重复记录。
-        when(knowledgeEntryMapper.countActiveByBusinessKey(request, null)).thenReturn(0, 1);
+        when(knowledgeEntryMapper.countActiveByBusinessKey(request, null)).thenReturn(0);
         when(longIdGenerator.nextId()).thenReturn(2100000000000000099L);
         when(knowledgeEntryMapper.insertEntry(2100000000000000099L, request))
-                .thenThrow(new DuplicateKeyException("duplicate business key"));
+                .thenThrow(new DuplicateKeyException(
+                        "Duplicate entry for key 'uk_entry_type_code_version_marker'"));
 
         BusinessException exception = assertThrows(
                 BusinessException.class, () -> knowledgeEntryService.createEntry(request));
@@ -210,7 +210,8 @@ class KnowledgeEntryServiceTest {
     @Test
     void shouldUpdateKnowledgeEntry() {
         KnowledgeEntryUpdateRequest request = updateRequest("DRAWING", "DWG-HVAC-001", "V1.1");
-        when(knowledgeEntryMapper.countActiveById(2100000000000000001L)).thenReturn(1);
+        when(knowledgeEntryMapper.selectActiveIdForUpdate(2100000000000000001L))
+                .thenReturn(2100000000000000001L);
         when(knowledgeEntryMapper.countActiveByBusinessKey(request, 2100000000000000001L)).thenReturn(0);
         when(knowledgeEntryMapper.updateEntry(2100000000000000001L, request)).thenReturn(1);
 
@@ -224,7 +225,7 @@ class KnowledgeEntryServiceTest {
     @Test
     void shouldRejectUpdateWhenEntryDoesNotExist() {
         KnowledgeEntryUpdateRequest request = updateRequest("DRAWING", "DWG-HVAC-001", "V1.1");
-        when(knowledgeEntryMapper.countActiveById(999L)).thenReturn(0);
+        when(knowledgeEntryMapper.selectActiveIdForUpdate(999L)).thenReturn(null);
 
         BusinessException exception = assertThrows(
                 BusinessException.class, () -> knowledgeEntryService.updateEntry(999L, request));
@@ -238,7 +239,8 @@ class KnowledgeEntryServiceTest {
     @Test
     void shouldRejectDuplicateBusinessKeyWhenUpdating() {
         KnowledgeEntryUpdateRequest request = updateRequest("DRAWING", "DWG-CIVIL-002", "V1.0");
-        when(knowledgeEntryMapper.countActiveById(2100000000000000001L)).thenReturn(1);
+        when(knowledgeEntryMapper.selectActiveIdForUpdate(2100000000000000001L))
+                .thenReturn(2100000000000000001L);
         when(knowledgeEntryMapper.countActiveByBusinessKey(request, 2100000000000000001L)).thenReturn(1);
 
         BusinessException exception = assertThrows(
@@ -253,11 +255,13 @@ class KnowledgeEntryServiceTest {
     @Test
     void shouldTranslateConcurrentDuplicateWhenUpdating() {
         KnowledgeEntryUpdateRequest request = updateRequest("DRAWING", "DWG-NEW-001", "V1.0");
-        when(knowledgeEntryMapper.countActiveById(2100000000000000001L)).thenReturn(1);
+        when(knowledgeEntryMapper.selectActiveIdForUpdate(2100000000000000001L))
+                .thenReturn(2100000000000000001L);
         when(knowledgeEntryMapper.countActiveByBusinessKey(request, 2100000000000000001L))
-                .thenReturn(0, 1);
+                .thenReturn(0);
         when(knowledgeEntryMapper.updateEntry(2100000000000000001L, request))
-                .thenThrow(new DuplicateKeyException("duplicate business key"));
+                .thenThrow(new DuplicateKeyException(
+                        "Duplicate entry for key 'uk_entry_type_code_version_marker'"));
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
@@ -265,6 +269,21 @@ class KnowledgeEntryServiceTest {
 
         assertEquals(CommonErrorCode.BUSINESS_ERROR, exception.getErrorCode());
         assertEquals("相同类型、条目编码和版本的知识条目已存在", exception.getMessage());
+    }
+
+    /** 主键碰撞不属于业务键重复，必须保留为系统异常以暴露雪花节点配置问题。 */
+    @Test
+    void shouldNotHidePrimaryKeyCollisionAsBusinessError() {
+        KnowledgeEntryCreateRequest request = createRequest("DRAWING", "DWG-NEW-001", "V1.0");
+        when(knowledgeEntryMapper.countActiveByBusinessKey(request, null)).thenReturn(0);
+        when(longIdGenerator.nextId()).thenReturn(2100000000000000099L);
+        DuplicateKeyException primaryKeyException = new DuplicateKeyException("Duplicate entry for key 'PRIMARY'");
+        when(knowledgeEntryMapper.insertEntry(2100000000000000099L, request)).thenThrow(primaryKeyException);
+
+        DuplicateKeyException actual = assertThrows(
+                DuplicateKeyException.class, () -> knowledgeEntryService.createEntry(request));
+
+        assertEquals(primaryKeyException, actual);
     }
 
     /** 单条删除成功后必须继续失效该条目的全部正常文件。 */

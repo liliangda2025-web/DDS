@@ -23,12 +23,16 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * 知识条目业务服务。
  */
 @Service
 public class KnowledgeEntryService {
+
+    /** 数据库中约束知识条目有效业务键唯一性的索引名称。 */
+    private static final String BUSINESS_KEY_CONSTRAINT = "uk_entry_type_code_version_marker";
 
     private final KnowledgeEntryMapper knowledgeEntryMapper;
     private final LongIdGenerator longIdGenerator;
@@ -96,8 +100,8 @@ public class KnowledgeEntryService {
                 throw new IllegalStateException("新增知识条目影响行数异常: " + insertedRows);
             }
         } catch (DuplicateKeyException exception) {
-            // 只有业务键确实已经存在时才转换提示；若是节点号配置错误造成主键冲突，则保留系统异常以便排查。
-            if (knowledgeEntryMapper.countActiveByBusinessKey(request, null) > 0) {
+            // 直接识别数据库报告的约束名，不再通过事务内二次查询判断，避免读取到旧的一致性快照。
+            if (isBusinessKeyViolation(exception)) {
                 throw duplicateEntryException();
             }
             throw exception;
@@ -114,7 +118,7 @@ public class KnowledgeEntryService {
     @Transactional
     public boolean updateEntry(Long entryId, KnowledgeEntryUpdateRequest request) {
         validateEntryType(request.entryType());
-        ensureEntryExists(entryId);
+        lockActiveEntry(entryId);
 
         if (knowledgeEntryMapper.countActiveByBusinessKey(request, entryId) > 0) {
             throw duplicateEntryException();
@@ -125,13 +129,10 @@ public class KnowledgeEntryService {
             if (updatedRows > 1) {
                 throw new IllegalStateException("修改知识条目影响行数异常: " + updatedRows);
             }
-            if (updatedRows == 0 && knowledgeEntryMapper.countActiveById(entryId) == 0) {
-                // 前置检查后条目可能被另一事务逻辑删除，此时仍应按资源不存在响应。
-                throw entryNotFoundException();
-            }
+            // 目标行已由 FOR UPDATE 锁定；0 只表示数据库配置为“不计未变化行”，仍属于幂等成功。
         } catch (DuplicateKeyException exception) {
             // 并发修改可能在前置检查后占用目标业务键，数据库唯一键负责最终防线。
-            if (knowledgeEntryMapper.countActiveByBusinessKey(request, entryId) > 0) {
+            if (isBusinessKeyViolation(exception)) {
                 throw duplicateEntryException();
             }
             throw exception;
@@ -209,9 +210,13 @@ public class KnowledgeEntryService {
         }
     }
 
-    /** 正常条目不存在时抛出与详情接口一致的 404 业务异常。 */
-    private void ensureEntryExists(Long entryId) {
-        if (knowledgeEntryMapper.countActiveById(entryId) == 0) {
+    /**
+     * 锁定待修改的正常条目。
+     *
+     * <p>行锁会一直持有到修改事务结束，从而阻止条目在存在性检查与 UPDATE 之间被并发删除。</p>
+     */
+    private void lockActiveEntry(Long entryId) {
+        if (knowledgeEntryMapper.selectActiveIdForUpdate(entryId) == null) {
             throw entryNotFoundException();
         }
     }
@@ -232,5 +237,24 @@ public class KnowledgeEntryService {
         return new BusinessException(
                 CommonErrorCode.BUSINESS_ERROR,
                 "相同类型、条目编码和版本的知识条目已存在");
+    }
+
+    /**
+     * 判断重复键异常是否由知识条目业务唯一键触发。
+     *
+     * <p>MySQL 与 H2 的异常文本格式不同，但都会包含约束名称。只转换明确的业务键冲突；主键碰撞等异常
+     * 保持为系统错误，避免用“业务数据重复”掩盖雪花节点配置问题。</p>
+     */
+    private boolean isBusinessKeyViolation(DuplicateKeyException exception) {
+        Throwable cause = exception;
+        while (cause != null) {
+            String message = cause.getMessage();
+            if (message != null
+                    && message.toLowerCase(Locale.ROOT).contains(BUSINESS_KEY_CONSTRAINT)) {
+                return true;
+            }
+            cause = cause.getCause();
+        }
+        return false;
     }
 }

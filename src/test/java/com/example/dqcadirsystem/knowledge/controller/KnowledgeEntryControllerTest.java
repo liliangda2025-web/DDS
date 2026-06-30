@@ -105,6 +105,18 @@ class KnowledgeEntryControllerTest {
                 .andExpect(jsonPath("$.message").value("页码必须大于等于1"));
     }
 
+    /** 防止单次查询返回过多数据，每页条数上限固定为 100。 */
+    @Test
+    void shouldRejectOversizedPage() throws Exception {
+        mockMvc.perform(post("/api/knowledge/entries/page")
+                        .contextPath("/api")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"pageSize\":101}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(40000))
+                .andExpect(jsonPath("$.message").value("每页条数不能超过100"));
+    }
+
     /** 验证详情接口字段、嵌套当前文件、字符串 ID 和时间格式与接口文档一致。 */
     @Test
     void shouldReturnKnowledgeEntryDetail() throws Exception {
@@ -291,5 +303,21 @@ class KnowledgeEntryControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(40000))
                 .andExpect(jsonPath("$.message").value("知识条目ID列表不能为空"));
+    }
+
+    /** 防止逐条删除产生过多数据库操作，单批最多允许 100 个 ID。 */
+    @Test
+    void shouldRejectOversizedBatchDeleteRequest() throws Exception {
+        String entryIds = java.util.stream.LongStream.rangeClosed(1, 101)
+                .mapToObj(entryId -> "\"" + entryId + "\"")
+                .collect(java.util.stream.Collectors.joining(",", "[", "]"));
+
+        mockMvc.perform(delete("/api/knowledge/entries/batch")
+                        .contextPath("/api")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"entryIds\":" + entryIds + "}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(40000))
+                .andExpect(jsonPath("$.message").value("单次最多删除100条知识条目"));
     }
 }

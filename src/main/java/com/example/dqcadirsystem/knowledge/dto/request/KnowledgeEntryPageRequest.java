@@ -25,6 +25,7 @@ public record KnowledgeEntryPageRequest(
         @Min(value = 1, message = "页码必须大于等于1")
         Integer pageNum,
         @Min(value = 1, message = "每页条数必须大于等于1")
+        @Max(value = 100, message = "每页条数不能超过100")
         Integer pageSize) {
 
     /** 默认页码。 */

@@ -48,8 +48,12 @@ public interface KnowledgeEntryMapper {
     int insertEntry(@Param("entryId") long entryId,
                     @Param("request") KnowledgeEntryCreateRequest request);
 
-    /** 查询指定 ID 的正常知识条目是否存在。 */
-    int countActiveById(@Param("entryId") Long entryId);
+    /**
+     * 查询并锁定指定 ID 的正常知识条目，锁持续到当前事务结束。
+     *
+     * @return 正常条目 ID；不存在或已删除时返回 {@code null}
+     */
+    Long selectActiveIdForUpdate(@Param("entryId") Long entryId);
 
     /**
      * 更新正常状态知识条目的业务元数据。

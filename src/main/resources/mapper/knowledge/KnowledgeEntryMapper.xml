@@ -8,12 +8,26 @@
         管理列表以知识条目为主表，使用 LEFT JOIN 保留暂时没有当前文件的知识条目。
         文件条件写在 JOIN 中，避免把没有文件的知识条目从无文件名查询中排除。
     -->
+    <!--
+        即使历史异常数据中存在多个当前文件，也只选择上传时间最新、ID 最大的一条。
+        这既让分页与详情行为一致，也避免一条知识条目在同一页重复出现。
+    -->
+    <sql id="currentFileLeftJoin">
+        LEFT JOIN knowledge_file f
+          ON f.id = (
+              SELECT current_file.id
+              FROM knowledge_file current_file
+              WHERE current_file.entry_id = e.id
+                AND current_file.is_current = 1
+                AND current_file.status = 1
+              ORDER BY current_file.uploaded_at DESC, current_file.id DESC
+              LIMIT 1
+          )
+    </sql>
+
     <sql id="pageFromAndWhere">
         FROM knowledge_entry e
-        LEFT JOIN knowledge_file f
-          ON e.id = f.entry_id
-         AND f.is_current = 1
-         AND f.status = 1
+        <include refid="currentFileLeftJoin"/>
         WHERE e.status = 1
         <if test="request.entryType != null">
             AND e.entry_type = #{request.entryType}
@@ -73,7 +87,7 @@
     <!--
         详情查询使用 LEFT JOIN，保证已经创建但尚未上传当前文件的条目仍可被查看。
         文件状态条件必须放在 JOIN 中；如果放到 WHERE 中，无文件条目会被错误过滤。
-        正常数据应当至多存在一个当前有效文件，ORDER BY 与 LIMIT 1 是对历史异常数据的防御性处理。
+        当前文件公共 JOIN 已确定性选择一条记录，因此详情与分页使用完全相同的文件选择规则。
     -->
     <select id="selectDetail"
             resultType="com.example.dqcadirsystem.knowledge.mapper.model.KnowledgeEntryDetailRow">
@@ -98,14 +112,9 @@
                f.upload_status,
                f.uploaded_at
         FROM knowledge_entry e
-        LEFT JOIN knowledge_file f
-          ON e.id = f.entry_id
-         AND f.is_current = 1
-         AND f.status = 1
+        <include refid="currentFileLeftJoin"/>
         WHERE e.id = #{entryId}
           AND e.status = 1
-        ORDER BY f.uploaded_at DESC, f.id DESC
-        LIMIT 1
     </select>
 
     <!--
@@ -143,12 +152,16 @@
         )
     </insert>
 
-    <!-- 逻辑删除记录对所有维护接口都视为不存在。 -->
-    <select id="countActiveById" resultType="int">
-        SELECT COUNT(1)
+    <!--
+        修改前使用锁定读稳定目标条目，避免存在性检查后被其他事务并发删除。
+        本查询必须在 @Transactional 方法中调用，事务结束时行锁才会释放。
+    -->
+    <select id="selectActiveIdForUpdate" resultType="long">
+        SELECT id
         FROM knowledge_entry
         WHERE id = #{entryId}
           AND status = 1
+        FOR UPDATE
     </select>
 
     <!--

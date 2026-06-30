@@ -11,12 +11,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.dao.DuplicateKeyException;
 
 import java.time.LocalDate;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * 使用 H2 MySQL 兼容模式执行真实 Mapper SQL，验证动态条件、关联和字段映射。
@@ -140,7 +142,7 @@ class KnowledgeEntryMapperTest {
                 "DRAWING", "DWG-HVAC-001", "修改后的暖通图纸", "修改 暖通", "V1.1",
                 "修改项目", LocalDate.of(2026, 7, 1), "新图纸库", "HVAC", "新编写人", "机密");
 
-        assertEquals(1, knowledgeEntryMapper.countActiveById(entryId));
+        assertEquals(entryId, knowledgeEntryMapper.selectActiveIdForUpdate(entryId));
         assertEquals(0, knowledgeEntryMapper.countActiveByBusinessKey(request, entryId));
         assertEquals(1, knowledgeEntryMapper.updateEntry(entryId, request));
 
@@ -160,7 +162,7 @@ class KnowledgeEntryMapperTest {
                 "LAW", "LAW-001", "尝试修改删除记录", null, "V2.0",
                 null, null, null, null, null, null);
 
-        assertEquals(0, knowledgeEntryMapper.countActiveById(deletedEntryId));
+        assertNull(knowledgeEntryMapper.selectActiveIdForUpdate(deletedEntryId));
         assertEquals(0, knowledgeEntryMapper.updateEntry(deletedEntryId, request));
     }
 
@@ -172,7 +174,7 @@ class KnowledgeEntryMapperTest {
         assertEquals(1, knowledgeEntryMapper.logicalDeleteEntry(entryId));
         assertEquals(1, knowledgeEntryMapper.logicalDeleteFilesByEntryId(entryId));
 
-        assertEquals(0, knowledgeEntryMapper.countActiveById(entryId));
+        assertNull(knowledgeEntryMapper.selectActiveIdForUpdate(entryId));
         assertEquals(0, jdbcTemplate.queryForObject(
                 "SELECT status FROM knowledge_entry WHERE id = ?", Integer.class, entryId));
         assertEquals(entryId, jdbcTemplate.queryForObject(
@@ -186,5 +188,53 @@ class KnowledgeEntryMapperTest {
     void shouldIgnoreAlreadyDeletedEntry() {
         assertEquals(0, knowledgeEntryMapper.logicalDeleteEntry(2100000000000000003L));
         assertEquals(0, knowledgeEntryMapper.logicalDeleteFilesByEntryId(2100000000000000003L));
+    }
+
+    /** H2 测试表必须与正式表一样，由数据库真实拒绝重复的有效业务键。 */
+    @Test
+    void shouldEnforceActiveBusinessKeyConstraint() {
+        KnowledgeEntryCreateRequest duplicate = new KnowledgeEntryCreateRequest(
+                "DRAWING", "DWG-HVAC-001", "重复图纸", null, "V1.0",
+                null, null, null, null, null, null);
+
+        assertThrows(DuplicateKeyException.class,
+                () -> knowledgeEntryMapper.insertEntry(2100000000000000098L, duplicate));
+    }
+
+    /** 逻辑删除释放有效业务键后，应允许重新创建相同类型、编码和版本。 */
+    @Test
+    void shouldAllowRecreatingBusinessKeyAfterLogicalDelete() {
+        long originalEntryId = 2100000000000000001L;
+        KnowledgeEntryCreateRequest recreated = new KnowledgeEntryCreateRequest(
+                "DRAWING", "DWG-HVAC-001", "重新创建的暖通图纸", null, "V1.0",
+                null, null, null, null, null, null);
+
+        assertEquals(1, knowledgeEntryMapper.logicalDeleteEntry(originalEntryId));
+        assertEquals(1, knowledgeEntryMapper.insertEntry(2100000000000000097L, recreated));
+        assertEquals(1, knowledgeEntryMapper.countActiveByBusinessKey(recreated, null));
+    }
+
+    /** 即使历史数据存在多个当前文件，分页和详情也应稳定选择最新的一条。 */
+    @Test
+    void shouldChooseLatestFileWhenMultipleCurrentFilesExist() {
+        jdbcTemplate.update("""
+                INSERT INTO knowledge_file (
+                    id, entry_id, original_file_name, file_ext, file_size, file_url,
+                    upload_status, upload_error_msg, is_current, uploaded_at, status
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, 1, ?, 1)
+                """,
+                2200000000000000002L, 2100000000000000001L, "更新后的暖通图纸.pdf", "pdf",
+                4096000L, "/uploads/knowledge/latest.pdf", "success",
+                java.sql.Timestamp.valueOf("2026-06-30 12:00:00"));
+        KnowledgeEntryPageRequest request = new KnowledgeEntryPageRequest(
+                "DRAWING", null, null, null, null, null, null, null, 1, 10);
+
+        List<KnowledgeEntryPageRow> rows = knowledgeEntryMapper.selectPage(request);
+        KnowledgeEntryDetailRow detail = knowledgeEntryMapper.selectDetail(2100000000000000001L);
+
+        assertEquals(1, knowledgeEntryMapper.countPage(request));
+        assertEquals(1, rows.size());
+        assertEquals("2200000000000000002", rows.getFirst().fileId());
+        assertEquals("2200000000000000002", detail.fileId());
     }
 }

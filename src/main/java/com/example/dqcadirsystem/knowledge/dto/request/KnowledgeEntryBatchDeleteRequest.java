@@ -3,6 +3,7 @@ package com.example.dqcadirsystem.knowledge.dto.request;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -16,6 +17,7 @@ import java.util.List;
  */
 public record KnowledgeEntryBatchDeleteRequest(
         @NotEmpty(message = "知识条目ID列表不能为空")
+        @Size(max = 100, message = "单次最多删除100条知识条目")
         List<@NotNull(message = "知识条目ID不能为空")
                 @Positive(message = "知识条目ID必须大于0") Long> entryIds) {
 

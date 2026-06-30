@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.dqcadirsystem.knowledge.mapper.KnowledgeFileMapper">
+
+    <!-- 上传大文件前先做一次廉价检查，避免为不存在的条目消耗 OSS 流量。 -->
+    <select id="selectActiveEntryId" resultType="long">
+        SELECT id
+        FROM knowledge_entry
+        WHERE id = #{entryId}
+          AND status = 1
+    </select>
+
+    <!--
+        OSS 上传完成后必须重新检查并锁定条目：预检查与上传之间，条目仍可能被其他请求删除。
+        锁会持有到文件替换事务结束，并发上传因此不会留下多个当前文件。
+    -->
+    <select id="selectActiveEntryIdForUpdate" resultType="long">
+        SELECT id
+        FROM knowledge_entry
+        WHERE id = #{entryId}
+          AND status = 1
+        FOR UPDATE
+    </select>
+
+    <update id="unsetCurrentFiles">
+        UPDATE knowledge_file
+        SET is_current = 0
+        WHERE entry_id = #{entryId}
+          AND is_current = 1
+          AND status = 1
+    </update>
+
+    <!-- 上传失败不落库，因此写入的文件状态固定为 success、当前和正常。 -->
+    <insert id="insertSuccessfulFile">
+        INSERT INTO knowledge_file (
+            id, entry_id, original_file_name, file_ext, file_size, file_url,
+            upload_status, upload_error_msg, is_current, uploaded_by, uploaded_at, status
+        ) VALUES (
+            #{fileId}, #{entryId}, #{originalFileName}, #{fileType}, #{fileSize}, #{fileUrl},
+            'success', NULL, 1, NULL, CURRENT_TIMESTAMP, 1
+        )
+    </insert>
+
+    <select id="selectById"
+            resultType="com.example.dqcadirsystem.knowledge.mapper.model.KnowledgeFileRow">
+        SELECT CONCAT('', id) AS file_id,
+               CONCAT('', entry_id) AS entry_id,
+               original_file_name,
+               file_ext AS file_type,
+               file_size,
+               file_url,
+               upload_status,
+               is_current,
+               uploaded_at
+        FROM knowledge_file
+        WHERE id = #{fileId}
+          AND status = 1
+    </select>
+
+</mapper>

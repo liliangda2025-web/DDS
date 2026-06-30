@@ -9,6 +9,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -132,6 +133,16 @@ class GlobalExceptionHandlerWebMvcTest {
                 .andExpect(jsonPath("$.message").value("请求方法不支持"));
     }
 
+    /** 上传体积超过限制时，也必须保持统一参数错误响应。 */
+    @Test
+    void shouldHandleMaxUploadSizeExceeded() throws Exception {
+        mockMvc.perform(get("/test/file-too-large"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(40000))
+                .andExpect(jsonPath("$.message").value("文件大小不能超过500MB"))
+                .andExpect(jsonPath("$.data").value(nullValue()));
+    }
+
     /**
      * 验证未知系统异常只向客户端返回固定安全提示。
      * 测试 Controller 抛出的敏感异常文本只能出现在服务端日志中，不能出现在 JSON 响应中。
@@ -187,6 +198,12 @@ class GlobalExceptionHandlerWebMvcTest {
         @GetMapping("/number")
         ApiResponse<Integer> number(@RequestParam Integer count) {
             return ApiResponse.success(count);
+        }
+
+        /** 模拟 multipart 解析阶段发现文件超过配置限制。 */
+        @GetMapping("/file-too-large")
+        ApiResponse<Void> fileTooLarge() {
+            throw new MaxUploadSizeExceededException(500L * 1024 * 1024);
         }
 
         /** 模拟未预料的系统异常，用于验证兜底处理和敏感信息保护。 */

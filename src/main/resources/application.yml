@@ -1,6 +1,13 @@
 spring:
   application:
     name: DQCADIRSystem
+  servlet:
+    multipart:
+      # 单个业务文件最大允许 500 MiB；请求上限额外预留 multipart 边界和请求头空间。
+      max-file-size: 500MB
+      max-request-size: 510MB
+      # 0 表示 multipart 内容直接写入临时磁盘，避免大文件整体驻留 JVM 堆内存。
+      file-size-threshold: 0
   datasource:
     username: root
     password: 1234
@@ -25,3 +32,10 @@ mybatis:
 app:
   id-generator:
     worker-id: 0
+  oss:
+    # AccessKey ID 和 Secret 分别由 OSS_ACCESS_KEY_ID、OSS_ACCESS_KEY_SECRET 环境变量提供。
+    region: cn-beijing
+    endpoint: https://oss-cn-beijing.aliyuncs.com
+    bucket: liliangda-oss-test
+    public-base-url: https://liliangda-oss-test.oss-cn-beijing.aliyuncs.com
+    key-prefix: knowledge

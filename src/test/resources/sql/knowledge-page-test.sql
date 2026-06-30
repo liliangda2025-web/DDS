@@ -33,6 +33,7 @@ CREATE TABLE knowledge_file (
     upload_status VARCHAR(30) NOT NULL DEFAULT 'success',
     upload_error_msg VARCHAR(500),
     is_current TINYINT NOT NULL DEFAULT 1,
+    uploaded_by BIGINT,
     uploaded_at TIMESTAMP NOT NULL,
     status TINYINT NOT NULL DEFAULT 1
 );
@@ -45,7 +46,8 @@ INSERT INTO knowledge_entry VALUES (
 );
 INSERT INTO knowledge_file VALUES (
     2200000000000000001, 2100000000000000001, '总部办公楼暖通空调设计图1.pdf', 'pdf', 2048000,
-    '/uploads/knowledge/2100000000000000001.pdf', 'success', NULL, 1,
+    'https://liliangda-oss-test.oss-cn-beijing.aliyuncs.com/knowledge/2100000000000000001/2200000000000000001.pdf',
+    'success', NULL, 1, NULL,
     TIMESTAMP '2026-06-30 10:00:00', 1
 );
 

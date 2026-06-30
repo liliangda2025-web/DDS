@@ -48,6 +48,15 @@
             <artifactId>mybatis-spring-boot-starter</artifactId>
             <version>3.0.5</version>
         </dependency>
+        <!--
+            阿里云 OSS Java SDK V2。文件上传实现只从环境变量读取访问凭证，
+            不在项目配置文件或源码中保存 AccessKey，避免密钥进入版本库。
+        -->
+        <dependency>
+            <groupId>com.aliyun</groupId>
+            <artifactId>alibabacloud-oss-v2</artifactId>
+            <version>0.5.0</version>
+        </dependency>
 
         <dependency>
             <groupId>com.mysql</groupId>

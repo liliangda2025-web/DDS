@@ -14,6 +14,9 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.NoHandlerFoundException;
@@ -111,6 +114,37 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleMissingRequestParameter(
             MissingServletRequestParameterException exception) {
         return failure(CommonErrorCode.BAD_REQUEST, "缺少必填参数: " + exception.getParameterName());
+    }
+
+    /**
+     * 处理 multipart 请求缺少必填文件字段的情况。
+     *
+     * <p>文件接口固定使用名为 {@code file} 的表单字段。这里不返回 Spring 的内部绑定信息，
+     * 只给调用方一个稳定、可直接展示的参数错误提示。</p>
+     */
+    @ExceptionHandler(MissingServletRequestPartException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMissingRequestPart(
+            MissingServletRequestPartException exception) {
+        return failure(CommonErrorCode.BAD_REQUEST, "缺少必填文件: " + exception.getRequestPartName());
+    }
+
+    /**
+     * 处理文件或整个 multipart 请求超过 Spring 配置上限的情况。
+     *
+     * <p>该异常发生在进入 Controller 之前，因此必须在全局异常处理器中转换，
+     * 才能继续保持统一的 {@code code/message/data} 响应结构。</p>
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMaxUploadSizeExceeded() {
+        return failure(CommonErrorCode.BAD_REQUEST, "文件大小不能超过500MB");
+    }
+
+    /**
+     * 处理 multipart 边界损坏、请求无法解析等其余上传协议错误。
+     */
+    @ExceptionHandler(MultipartException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMultipartException() {
+        return failure(CommonErrorCode.BAD_REQUEST, "文件上传请求格式错误");
     }
 
     /**

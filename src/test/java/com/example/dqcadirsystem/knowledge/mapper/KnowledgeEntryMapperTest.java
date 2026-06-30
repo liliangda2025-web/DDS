@@ -1,5 +1,6 @@
 package com.example.dqcadirsystem.knowledge.mapper;
 
+import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryCreateRequest;
 import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryPageRequest;
 import com.example.dqcadirsystem.knowledge.mapper.model.KnowledgeEntryDetailRow;
 import com.example.dqcadirsystem.knowledge.mapper.model.KnowledgeEntryPageRow;
@@ -94,5 +95,34 @@ class KnowledgeEntryMapperTest {
     @Test
     void shouldNotQueryLogicallyDeletedEntryDetail() {
         assertNull(knowledgeEntryMapper.selectDetail(2100000000000000003L));
+    }
+
+    /** 新增 SQL 应完整保存业务字段，并固定写入“已完善”和正常状态。 */
+    @Test
+    void shouldInsertKnowledgeEntry() {
+        KnowledgeEntryCreateRequest request = new KnowledgeEntryCreateRequest(
+                "LAW", "LAW-NEW-001", "新增法规", "新增 法规", "2026版",
+                "法规库", LocalDate.of(2026, 6, 30), "法规库", "LAW", "法规管理员", "公开");
+
+        assertEquals(0, knowledgeEntryMapper.countActiveByBusinessKey(request));
+        assertEquals(1, knowledgeEntryMapper.insertEntry(2100000000000000099L, request));
+
+        KnowledgeEntryDetailRow row = knowledgeEntryMapper.selectDetail(2100000000000000099L);
+        assertEquals("2100000000000000099", row.entryId());
+        assertEquals("新增法规", row.title());
+        assertEquals("法规库", row.projectName());
+        assertEquals(1, row.infoStatus());
+        assertNull(row.fileId());
+        assertEquals(1, knowledgeEntryMapper.countActiveByBusinessKey(request));
+    }
+
+    /** 业务键检查应识别现有正常记录。 */
+    @Test
+    void shouldCountExistingActiveBusinessKey() {
+        KnowledgeEntryCreateRequest request = new KnowledgeEntryCreateRequest(
+                "DRAWING", "DWG-HVAC-001", "任意标题", null, "V1.0",
+                null, null, null, null, null, null);
+
+        assertEquals(1, knowledgeEntryMapper.countActiveByBusinessKey(request));
     }
 }

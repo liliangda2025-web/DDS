@@ -2,7 +2,9 @@ package com.example.dqcadirsystem.knowledge.controller;
 
 import com.example.dqcadirsystem.common.api.ApiResponse;
 import com.example.dqcadirsystem.common.api.PageResponse;
+import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryCreateRequest;
 import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryPageRequest;
+import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeEntryCreateResponse;
 import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeEntryDetailResponse;
 import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeEntryPageItemResponse;
 import com.example.dqcadirsystem.knowledge.service.KnowledgeEntryService;
@@ -51,5 +53,17 @@ public class KnowledgeEntryController {
     public ApiResponse<KnowledgeEntryDetailResponse> getEntryDetail(
             @PathVariable @Positive(message = "知识条目ID必须大于0") Long entryId) {
         return ApiResponse.success(knowledgeEntryService.getEntryDetail(entryId));
+    }
+
+    /**
+     * 手工新增知识条目元数据。
+     *
+     * <p>本接口不接收文件；新增成功后，调用方可使用返回的条目 ID 调用当前文件上传接口。
+     * 请求体通过 Bean Validation 校验必填项和数据库字段长度。</p>
+     */
+    @PostMapping
+    public ApiResponse<KnowledgeEntryCreateResponse> createEntry(
+            @Valid @RequestBody KnowledgeEntryCreateRequest request) {
+        return ApiResponse.success("新增成功", knowledgeEntryService.createEntry(request));
     }
 }

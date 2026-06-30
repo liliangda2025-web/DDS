@@ -1,5 +1,6 @@
 package com.example.dqcadirsystem.knowledge.mapper;
 
+import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryCreateRequest;
 import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryPageRequest;
 import com.example.dqcadirsystem.knowledge.mapper.model.KnowledgeEntryDetailRow;
 import com.example.dqcadirsystem.knowledge.mapper.model.KnowledgeEntryPageRow;
@@ -28,4 +29,15 @@ public interface KnowledgeEntryMapper {
      * @return 条目不存在或已经逻辑删除时返回 {@code null}
      */
     KnowledgeEntryDetailRow selectDetail(@Param("entryId") Long entryId);
+
+    /** 查询是否存在相同类型、编码和版本的正常知识条目。 */
+    int countActiveByBusinessKey(@Param("request") KnowledgeEntryCreateRequest request);
+
+    /**
+     * 新增一条手工录入的知识条目。
+     *
+     * @return 实际插入行数，正常情况下固定为 1
+     */
+    int insertEntry(@Param("entryId") long entryId,
+                    @Param("request") KnowledgeEntryCreateRequest request);
 }

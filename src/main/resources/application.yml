@@ -19,3 +19,9 @@ mybatis:
   mapper-locations: classpath*:mapper/**/*.xml
   configuration:
     map-underscore-to-camel-case: true
+
+# 雪花 ID 的节点号，取值范围为 0～1023。
+# 多实例部署时必须为每个实例分配不同节点号，单实例开发环境使用 0 即可。
+app:
+  id-generator:
+    worker-id: 0

@@ -3,7 +3,10 @@ package com.example.dqcadirsystem.knowledge.service;
 import com.example.dqcadirsystem.common.api.PageResponse;
 import com.example.dqcadirsystem.common.exception.BusinessException;
 import com.example.dqcadirsystem.common.exception.CommonErrorCode;
+import com.example.dqcadirsystem.common.id.LongIdGenerator;
+import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryCreateRequest;
 import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryPageRequest;
+import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeEntryCreateResponse;
 import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeEntryDetailResponse;
 import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeEntryPageItemResponse;
 import com.example.dqcadirsystem.knowledge.mapper.KnowledgeEntryMapper;
@@ -14,6 +17,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DuplicateKeyException;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -33,6 +37,9 @@ class KnowledgeEntryServiceTest {
 
     @Mock
     private KnowledgeEntryMapper knowledgeEntryMapper;
+
+    @Mock
+    private LongIdGenerator longIdGenerator;
 
     @InjectMocks
     private KnowledgeEntryService knowledgeEntryService;
@@ -135,10 +142,78 @@ class KnowledgeEntryServiceTest {
         assertEquals("知识条目不存在", exception.getMessage());
     }
 
+    /** 正常新增时应生成主键、插入一次，并以字符串返回该主键。 */
+    @Test
+    void shouldCreateKnowledgeEntry() {
+        KnowledgeEntryCreateRequest request = createRequest("DRAWING", "DWG-NEW-001", "V1.0");
+        when(knowledgeEntryMapper.countActiveByBusinessKey(request)).thenReturn(0);
+        when(longIdGenerator.nextId()).thenReturn(2100000000000000099L);
+        when(knowledgeEntryMapper.insertEntry(2100000000000000099L, request)).thenReturn(1);
+
+        KnowledgeEntryCreateResponse result = knowledgeEntryService.createEntry(request);
+
+        assertEquals("2100000000000000099", result.entryId());
+        verify(knowledgeEntryMapper).insertEntry(2100000000000000099L, request);
+    }
+
+    /** 不合法类型应在查询数据库和生成 ID 之前被拒绝。 */
+    @Test
+    void shouldRejectUnknownEntryTypeWhenCreating() {
+        KnowledgeEntryCreateRequest request = createRequest("UNKNOWN", "CODE-001", "V1.0");
+
+        BusinessException exception = assertThrows(
+                BusinessException.class, () -> knowledgeEntryService.createEntry(request));
+
+        assertEquals(CommonErrorCode.BAD_REQUEST, exception.getErrorCode());
+        assertEquals("知识条目类型不合法", exception.getMessage());
+        verify(knowledgeEntryMapper, never()).countActiveByBusinessKey(request);
+        verify(longIdGenerator, never()).nextId();
+    }
+
+    /** 已存在相同正常业务键时，不应生成 ID 或再次插入。 */
+    @Test
+    void shouldRejectDuplicateBusinessKeyBeforeInsert() {
+        KnowledgeEntryCreateRequest request = createRequest("DRAWING", "DWG-HVAC-001", "V1.0");
+        when(knowledgeEntryMapper.countActiveByBusinessKey(request)).thenReturn(1);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class, () -> knowledgeEntryService.createEntry(request));
+
+        assertEquals(CommonErrorCode.BUSINESS_ERROR, exception.getErrorCode());
+        assertEquals("相同类型、条目编码和版本的知识条目已存在", exception.getMessage());
+        verify(longIdGenerator, never()).nextId();
+        verify(knowledgeEntryMapper, never()).insertEntry(org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.any());
+    }
+
+    /** 并发请求绕过前置检查时，数据库唯一键异常仍应转换为稳定的业务错误。 */
+    @Test
+    void shouldTranslateConcurrentDuplicateKeyToBusinessException() {
+        KnowledgeEntryCreateRequest request = createRequest("DRAWING", "DWG-NEW-001", "V1.0");
+        // 第一次检查尚不存在；模拟另一事务抢先插入后，异常兜底检查能够看到重复记录。
+        when(knowledgeEntryMapper.countActiveByBusinessKey(request)).thenReturn(0, 1);
+        when(longIdGenerator.nextId()).thenReturn(2100000000000000099L);
+        when(knowledgeEntryMapper.insertEntry(2100000000000000099L, request))
+                .thenThrow(new DuplicateKeyException("duplicate business key"));
+
+        BusinessException exception = assertThrows(
+                BusinessException.class, () -> knowledgeEntryService.createEntry(request));
+
+        assertEquals(CommonErrorCode.BUSINESS_ERROR, exception.getErrorCode());
+        assertEquals("相同类型、条目编码和版本的知识条目已存在", exception.getMessage());
+    }
+
     private KnowledgeEntryPageRequest request(
             String entryType, LocalDate startDate, LocalDate endDate, Integer pageNum) {
         return new KnowledgeEntryPageRequest(
                 entryType, null, null, null, null, null, startDate, endDate, pageNum, null);
+    }
+
+    /** 创建只包含新增场景必要业务数据的请求对象。 */
+    private KnowledgeEntryCreateRequest createRequest(String entryType, String entryCode, String version) {
+        return new KnowledgeEntryCreateRequest(
+                entryType, entryCode, "新增知识条目", "新增 知识", version,
+                null, LocalDate.of(2026, 6, 30), null, null, null, null);
     }
 
     /** 创建一条详情测试投影；fileId 为空时同步清空全部文件字段。 */

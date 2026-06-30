@@ -3,12 +3,16 @@ package com.example.dqcadirsystem.knowledge.service;
 import com.example.dqcadirsystem.common.api.PageResponse;
 import com.example.dqcadirsystem.common.exception.BusinessException;
 import com.example.dqcadirsystem.common.exception.CommonErrorCode;
+import com.example.dqcadirsystem.common.id.LongIdGenerator;
+import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryCreateRequest;
 import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryPageRequest;
+import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeEntryCreateResponse;
 import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeEntryDetailResponse;
 import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeEntryPageItemResponse;
 import com.example.dqcadirsystem.knowledge.enums.KnowledgeEntryType;
 import com.example.dqcadirsystem.knowledge.mapper.KnowledgeEntryMapper;
 import com.example.dqcadirsystem.knowledge.mapper.model.KnowledgeEntryDetailRow;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,9 +25,11 @@ import java.util.List;
 public class KnowledgeEntryService {
 
     private final KnowledgeEntryMapper knowledgeEntryMapper;
+    private final LongIdGenerator longIdGenerator;
 
-    public KnowledgeEntryService(KnowledgeEntryMapper knowledgeEntryMapper) {
+    public KnowledgeEntryService(KnowledgeEntryMapper knowledgeEntryMapper, LongIdGenerator longIdGenerator) {
         this.knowledgeEntryMapper = knowledgeEntryMapper;
+        this.longIdGenerator = longIdGenerator;
     }
 
     /**
@@ -63,13 +69,57 @@ public class KnowledgeEntryService {
         return KnowledgeEntryDetailResponse.from(row);
     }
 
+    /**
+     * 手工新增一条信息完整的知识条目。
+     *
+     * <p>先执行可读性更好的业务重复检查，再依赖数据库唯一键处理并发竞争：两个相同请求即使同时通过前置检查，
+     * 最终也只能有一个插入成功。手工新增只创建条目元数据，文件由独立上传接口后续关联。</p>
+     */
+    @Transactional
+    public KnowledgeEntryCreateResponse createEntry(KnowledgeEntryCreateRequest request) {
+        validateEntryType(request.entryType());
+        if (knowledgeEntryMapper.countActiveByBusinessKey(request) > 0) {
+            throw duplicateEntryException();
+        }
+
+        long entryId = longIdGenerator.nextId();
+        try {
+            int insertedRows = knowledgeEntryMapper.insertEntry(entryId, request);
+            if (insertedRows != 1) {
+                // 插入行数异常属于系统实现或数据库故障，不应伪装成可预期的业务错误。
+                throw new IllegalStateException("新增知识条目影响行数异常: " + insertedRows);
+            }
+        } catch (DuplicateKeyException exception) {
+            // 只有业务键确实已经存在时才转换提示；若是节点号配置错误造成主键冲突，则保留系统异常以便排查。
+            if (knowledgeEntryMapper.countActiveByBusinessKey(request) > 0) {
+                throw duplicateEntryException();
+            }
+            throw exception;
+        }
+        return KnowledgeEntryCreateResponse.from(entryId);
+    }
+
     private void validateRequest(KnowledgeEntryPageRequest request) {
-        if (request.entryType() != null && !KnowledgeEntryType.isValid(request.entryType())) {
-            throw new BusinessException(CommonErrorCode.BAD_REQUEST, "知识条目类型不合法");
+        if (request.entryType() != null) {
+            validateEntryType(request.entryType());
         }
         if (request.startDate() != null && request.endDate() != null
                 && request.startDate().isAfter(request.endDate())) {
             throw new BusinessException(CommonErrorCode.BAD_REQUEST, "发版开始日期不能晚于结束日期");
         }
+    }
+
+    /** 多个知识条目接口共用同一套类型合法性判断和错误提示。 */
+    private void validateEntryType(String entryType) {
+        if (!KnowledgeEntryType.isValid(entryType)) {
+            throw new BusinessException(CommonErrorCode.BAD_REQUEST, "知识条目类型不合法");
+        }
+    }
+
+    /** 构造业务键重复异常，保证前置检查和数据库兜底使用完全一致的响应。 */
+    private BusinessException duplicateEntryException() {
+        return new BusinessException(
+                CommonErrorCode.BUSINESS_ERROR,
+                "相同类型、条目编码和版本的知识条目已存在");
     }
 }

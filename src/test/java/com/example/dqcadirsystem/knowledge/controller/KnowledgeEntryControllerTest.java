@@ -4,9 +4,11 @@ import com.example.dqcadirsystem.common.api.PageResponse;
 import com.example.dqcadirsystem.common.exception.BusinessException;
 import com.example.dqcadirsystem.common.exception.CommonErrorCode;
 import com.example.dqcadirsystem.common.exception.GlobalExceptionHandler;
+import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryCreateRequest;
 import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryPageRequest;
 import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeCurrentFileResponse;
 import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeEntryDetailResponse;
+import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeEntryCreateResponse;
 import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeEntryPageItemResponse;
 import com.example.dqcadirsystem.knowledge.service.KnowledgeEntryService;
 import org.junit.jupiter.api.Test;
@@ -147,5 +149,48 @@ class KnowledgeEntryControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(40000))
                 .andExpect(jsonPath("$.message").value("知识条目ID必须大于0"));
+    }
+
+    /** 验证新增接口使用自定义成功提示，并以字符串形式返回新条目 ID。 */
+    @Test
+    void shouldCreateKnowledgeEntry() throws Exception {
+        when(knowledgeEntryService.createEntry(any(KnowledgeEntryCreateRequest.class)))
+                .thenReturn(new KnowledgeEntryCreateResponse("2100000000000000099"));
+
+        mockMvc.perform(post("/api/knowledge/entries")
+                        .contextPath("/api")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "entryType": "DRAWING",
+                                  "entryCode": "DWG-NEW-001",
+                                  "title": "新增图纸",
+                                  "keywords": "新增 图纸",
+                                  "version": "V1.0",
+                                  "releaseDate": "2026-06-30"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.message").value("新增成功"))
+                .andExpect(jsonPath("$.data.entryId").value("2100000000000000099"));
+    }
+
+    /** 缺少关键业务字段时应在 Controller 层直接返回统一参数错误。 */
+    @Test
+    void shouldRejectCreateRequestWithoutTitle() throws Exception {
+        mockMvc.perform(post("/api/knowledge/entries")
+                        .contextPath("/api")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "entryType": "DRAWING",
+                                  "entryCode": "DWG-NEW-001",
+                                  "version": "V1.0"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(40000))
+                .andExpect(jsonPath("$.message").value("标题不能为空"));
     }
 }

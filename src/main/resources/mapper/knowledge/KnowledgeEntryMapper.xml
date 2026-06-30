@@ -108,4 +108,36 @@
         LIMIT 1
     </select>
 
+    <!--
+        业务唯一键只针对正常记录。逻辑删除时 delete_marker 会从 0 更新为原条目 ID，
+        因此删除后允许重新创建相同类型、编码和版本的知识条目。
+    -->
+    <select id="countActiveByBusinessKey" resultType="int">
+        SELECT COUNT(1)
+        FROM knowledge_entry
+        WHERE entry_type = #{request.entryType}
+          AND entry_code = #{request.entryCode}
+          AND version = #{request.version}
+          AND status = 1
+          AND delete_marker = 0
+    </select>
+
+    <!--
+        手工新增只保存业务元数据，不同时创建文件记录。由于四个关键业务字段均已填写，
+        info_status 固定为 1（已完善）；正常状态和有效记录删除标记也在 SQL 中显式写明。
+    -->
+    <insert id="insertEntry">
+        INSERT INTO knowledge_entry (
+            id, entry_type, entry_code, title, keywords, version, project_name,
+            release_date, system_source, profession_code, author_name, secret_level,
+            info_status, status, delete_marker, created_at, updated_at
+        ) VALUES (
+            #{entryId}, #{request.entryType}, #{request.entryCode}, #{request.title},
+            #{request.keywords}, #{request.version}, #{request.projectName},
+            #{request.releaseDate}, #{request.systemSource}, #{request.professionCode},
+            #{request.authorName}, #{request.secretLevel},
+            1, 1, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        )
+    </insert>
+
 </mapper>

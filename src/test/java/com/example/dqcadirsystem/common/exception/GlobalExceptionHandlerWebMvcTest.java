@@ -107,7 +107,7 @@ class GlobalExceptionHandlerWebMvcTest {
     void shouldHandleMalformedJson() throws Exception {
         mockMvc.perform(post("/test/validate")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{"))
+                        .content("{}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(40000))
                 .andExpect(jsonPath("$.message").value("请求体格式错误"));

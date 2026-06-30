@@ -3,9 +3,11 @@ package com.example.dqcadirsystem.knowledge.controller;
 import com.example.dqcadirsystem.common.api.ApiResponse;
 import com.example.dqcadirsystem.common.api.PageResponse;
 import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryCreateRequest;
+import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryBatchDeleteRequest;
 import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryPageRequest;
 import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryUpdateRequest;
 import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeEntryCreateResponse;
+import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeEntryBatchDeleteResponse;
 import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeEntryDetailResponse;
 import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeEntryPageItemResponse;
 import com.example.dqcadirsystem.knowledge.service.KnowledgeEntryService;
@@ -13,6 +15,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -79,5 +82,25 @@ public class KnowledgeEntryController {
             @PathVariable @Positive(message = "知识条目ID必须大于0") Long entryId,
             @Valid @RequestBody KnowledgeEntryUpdateRequest request) {
         return ApiResponse.success("修改成功", knowledgeEntryService.updateEntry(entryId, request));
+    }
+
+    /**
+     * 逻辑删除指定知识条目及其关联文件。
+     */
+    @DeleteMapping("/{entryId}")
+    public ApiResponse<Boolean> deleteEntry(
+            @PathVariable @Positive(message = "知识条目ID必须大于0") Long entryId) {
+        return ApiResponse.success("删除成功", knowledgeEntryService.deleteEntry(entryId));
+    }
+
+    /**
+     * 批量逻辑删除知识条目。
+     *
+     * <p>单项不存在时通过结果中的失败列表返回；数据库故障则由全局异常处理器统一处理。</p>
+     */
+    @DeleteMapping("/batch")
+    public ApiResponse<KnowledgeEntryBatchDeleteResponse> batchDeleteEntries(
+            @Valid @RequestBody KnowledgeEntryBatchDeleteRequest request) {
+        return ApiResponse.success("删除成功", knowledgeEntryService.batchDeleteEntries(request));
     }
 }

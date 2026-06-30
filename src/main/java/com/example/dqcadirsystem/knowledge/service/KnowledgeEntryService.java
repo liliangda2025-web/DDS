@@ -4,10 +4,13 @@ import com.example.dqcadirsystem.common.api.PageResponse;
 import com.example.dqcadirsystem.common.exception.BusinessException;
 import com.example.dqcadirsystem.common.exception.CommonErrorCode;
 import com.example.dqcadirsystem.common.id.LongIdGenerator;
+import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryBatchDeleteRequest;
 import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryCreateRequest;
 import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryPageRequest;
 import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryUpdateRequest;
 import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeEntryCreateResponse;
+import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeEntryBatchDeleteResponse;
+import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeEntryDeleteFailureResponse;
 import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeEntryDetailResponse;
 import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeEntryPageItemResponse;
 import com.example.dqcadirsystem.knowledge.enums.KnowledgeEntryType;
@@ -17,6 +20,8 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 
 /**
@@ -134,6 +139,59 @@ public class KnowledgeEntryService {
         return true;
     }
 
+    /**
+     * 逻辑删除单个知识条目及其全部正常文件。
+     *
+     * <p>条目状态、删除标记和文件状态在同一事务中更新，任何数据库操作失败都会整体回滚。
+     * 已删除条目与从未存在的条目使用相同的 404 响应。</p>
+     */
+    @Transactional
+    public boolean deleteEntry(Long entryId) {
+        if (!deleteEntryInternal(entryId)) {
+            throw entryNotFoundException();
+        }
+        return true;
+    }
+
+    /**
+     * 批量逻辑删除知识条目。
+     *
+     * <p>不存在或已经删除的 ID 属于单项业务失败，不影响同批其他正常条目；底层数据库异常仍会抛出，
+     * 由事务管理器回滚本批已经执行的所有更新。输入顺序会保留在失败列表中。</p>
+     */
+    @Transactional
+    public KnowledgeEntryBatchDeleteResponse batchDeleteEntries(KnowledgeEntryBatchDeleteRequest request) {
+        validateNoDuplicateEntryIds(request.entryIds());
+
+        int successCount = 0;
+        List<KnowledgeEntryDeleteFailureResponse> failedList = new ArrayList<>();
+        for (Long entryId : request.entryIds()) {
+            if (deleteEntryInternal(entryId)) {
+                successCount++;
+            } else {
+                failedList.add(KnowledgeEntryDeleteFailureResponse.notFound(entryId));
+            }
+        }
+        return KnowledgeEntryBatchDeleteResponse.of(successCount, failedList);
+    }
+
+    /**
+     * 执行单条删除的公共步骤。
+     *
+     * @return 条目从正常状态成功变为删除状态时返回 {@code true}
+     */
+    private boolean deleteEntryInternal(Long entryId) {
+        int deletedRows = knowledgeEntryMapper.logicalDeleteEntry(entryId);
+        if (deletedRows == 0) {
+            return false;
+        }
+        if (deletedRows != 1) {
+            throw new IllegalStateException("删除知识条目影响行数异常: " + deletedRows);
+        }
+        knowledgeEntryMapper.logicalDeleteFilesByEntryId(entryId);
+        return true;
+    }
+
     private void validateRequest(KnowledgeEntryPageRequest request) {
         if (request.entryType() != null) {
             validateEntryType(request.entryType());
@@ -160,6 +218,13 @@ public class KnowledgeEntryService {
 
     private BusinessException entryNotFoundException() {
         return new BusinessException(CommonErrorCode.NOT_FOUND, "知识条目不存在");
+    }
+
+    /** 重复 ID 会导致批量结果计数含义不明确，因此作为请求参数错误整体拒绝。 */
+    private void validateNoDuplicateEntryIds(List<Long> entryIds) {
+        if (new HashSet<>(entryIds).size() != entryIds.size()) {
+            throw new BusinessException(CommonErrorCode.BAD_REQUEST, "知识条目ID不能重复");
+        }
     }
 
     /** 构造业务键重复异常，保证前置检查和数据库兜底使用完全一致的响应。 */

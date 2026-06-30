@@ -5,9 +5,11 @@ import com.example.dqcadirsystem.common.exception.BusinessException;
 import com.example.dqcadirsystem.common.exception.CommonErrorCode;
 import com.example.dqcadirsystem.common.id.LongIdGenerator;
 import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryCreateRequest;
+import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryBatchDeleteRequest;
 import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryPageRequest;
 import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryUpdateRequest;
 import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeEntryCreateResponse;
+import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeEntryBatchDeleteResponse;
 import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeEntryDetailResponse;
 import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeEntryPageItemResponse;
 import com.example.dqcadirsystem.knowledge.mapper.KnowledgeEntryMapper;
@@ -263,6 +265,65 @@ class KnowledgeEntryServiceTest {
 
         assertEquals(CommonErrorCode.BUSINESS_ERROR, exception.getErrorCode());
         assertEquals("相同类型、条目编码和版本的知识条目已存在", exception.getMessage());
+    }
+
+    /** 单条删除成功后必须继续失效该条目的全部正常文件。 */
+    @Test
+    void shouldDeleteEntryAndItsFiles() {
+        long entryId = 2100000000000000001L;
+        when(knowledgeEntryMapper.logicalDeleteEntry(entryId)).thenReturn(1);
+        when(knowledgeEntryMapper.logicalDeleteFilesByEntryId(entryId)).thenReturn(2);
+
+        boolean result = knowledgeEntryService.deleteEntry(entryId);
+
+        assertEquals(true, result);
+        verify(knowledgeEntryMapper).logicalDeleteFilesByEntryId(entryId);
+    }
+
+    /** 单条删除目标不存在时返回 404，且不应执行文件更新。 */
+    @Test
+    void shouldRejectDeleteWhenEntryDoesNotExist() {
+        when(knowledgeEntryMapper.logicalDeleteEntry(999L)).thenReturn(0);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class, () -> knowledgeEntryService.deleteEntry(999L));
+
+        assertEquals(CommonErrorCode.NOT_FOUND, exception.getErrorCode());
+        assertEquals("知识条目不存在", exception.getMessage());
+        verify(knowledgeEntryMapper, never()).logicalDeleteFilesByEntryId(999L);
+    }
+
+    /** 批量删除对不存在条目记录失败明细，同时继续处理其他正常条目。 */
+    @Test
+    void shouldReturnPartialResultWhenBatchDeleteContainsMissingEntry() {
+        KnowledgeEntryBatchDeleteRequest request = new KnowledgeEntryBatchDeleteRequest(
+                List.of(2100000000000000001L, 999L, 2100000000000000002L));
+        when(knowledgeEntryMapper.logicalDeleteEntry(2100000000000000001L)).thenReturn(1);
+        when(knowledgeEntryMapper.logicalDeleteEntry(999L)).thenReturn(0);
+        when(knowledgeEntryMapper.logicalDeleteEntry(2100000000000000002L)).thenReturn(1);
+
+        KnowledgeEntryBatchDeleteResponse result = knowledgeEntryService.batchDeleteEntries(request);
+
+        assertEquals(2, result.successCount());
+        assertEquals(1, result.failedCount());
+        assertEquals("999", result.failedList().getFirst().entryId());
+        assertEquals("知识条目不存在", result.failedList().getFirst().reason());
+        verify(knowledgeEntryMapper).logicalDeleteFilesByEntryId(2100000000000000001L);
+        verify(knowledgeEntryMapper).logicalDeleteFilesByEntryId(2100000000000000002L);
+        verify(knowledgeEntryMapper, never()).logicalDeleteFilesByEntryId(999L);
+    }
+
+    /** 重复 ID 会造成成功和失败数量歧义，因此整批请求应在写数据库前被拒绝。 */
+    @Test
+    void shouldRejectDuplicateIdsInBatchDelete() {
+        KnowledgeEntryBatchDeleteRequest request = new KnowledgeEntryBatchDeleteRequest(List.of(1L, 1L));
+
+        BusinessException exception = assertThrows(
+                BusinessException.class, () -> knowledgeEntryService.batchDeleteEntries(request));
+
+        assertEquals(CommonErrorCode.BAD_REQUEST, exception.getErrorCode());
+        assertEquals("知识条目ID不能重复", exception.getMessage());
+        verify(knowledgeEntryMapper, never()).logicalDeleteEntry(org.mockito.ArgumentMatchers.anyLong());
     }
 
     private KnowledgeEntryPageRequest request(

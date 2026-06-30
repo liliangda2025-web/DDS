@@ -5,9 +5,12 @@ import com.example.dqcadirsystem.common.exception.BusinessException;
 import com.example.dqcadirsystem.common.exception.CommonErrorCode;
 import com.example.dqcadirsystem.common.exception.GlobalExceptionHandler;
 import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryCreateRequest;
+import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryBatchDeleteRequest;
 import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryPageRequest;
 import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryUpdateRequest;
 import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeCurrentFileResponse;
+import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeEntryBatchDeleteResponse;
+import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeEntryDeleteFailureResponse;
 import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeEntryDetailResponse;
 import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeEntryCreateResponse;
 import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeEntryPageItemResponse;
@@ -27,6 +30,7 @@ import java.util.List;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -238,5 +242,54 @@ class KnowledgeEntryControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(40000))
                 .andExpect(jsonPath("$.message").value("知识条目ID必须大于0"));
+    }
+
+    /** 验证单条删除返回文档约定的布尔结果。 */
+    @Test
+    void shouldDeleteKnowledgeEntry() throws Exception {
+        when(knowledgeEntryService.deleteEntry(2100000000000000001L)).thenReturn(true);
+
+        mockMvc.perform(delete("/api/knowledge/entries/2100000000000000001").contextPath("/api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.message").value("删除成功"))
+                .andExpect(jsonPath("$.data").value(true));
+    }
+
+    /** 验证批量删除可以同时返回成功数量和按输入 ID 标识的失败明细。 */
+    @Test
+    void shouldBatchDeleteKnowledgeEntries() throws Exception {
+        KnowledgeEntryBatchDeleteResponse response = KnowledgeEntryBatchDeleteResponse.of(
+                1, List.of(KnowledgeEntryDeleteFailureResponse.notFound(999L)));
+        when(knowledgeEntryService.batchDeleteEntries(any(KnowledgeEntryBatchDeleteRequest.class)))
+                .thenReturn(response);
+
+        mockMvc.perform(delete("/api/knowledge/entries/batch")
+                        .contextPath("/api")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "entryIds": ["2100000000000000001", "999"]
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.message").value("删除成功"))
+                .andExpect(jsonPath("$.data.successCount").value(1))
+                .andExpect(jsonPath("$.data.failedCount").value(1))
+                .andExpect(jsonPath("$.data.failedList[0].entryId").value("999"))
+                .andExpect(jsonPath("$.data.failedList[0].reason").value("知识条目不存在"));
+    }
+
+    /** 批量删除至少需要提供一个知识条目 ID。 */
+    @Test
+    void shouldRejectEmptyBatchDeleteRequest() throws Exception {
+        mockMvc.perform(delete("/api/knowledge/entries/batch")
+                        .contextPath("/api")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"entryIds\":[]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(40000))
+                .andExpect(jsonPath("$.message").value("知识条目ID列表不能为空"));
     }
 }

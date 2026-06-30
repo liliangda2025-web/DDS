@@ -58,4 +58,18 @@ public interface KnowledgeEntryMapper {
      */
     int updateEntry(@Param("entryId") Long entryId,
                     @Param("request") KnowledgeEntryUpdateRequest request);
+
+    /**
+     * 逻辑删除一条正常知识条目，并把删除标记更新为该条目自身 ID。
+     *
+     * @return 删除成功为 1，条目不存在或已删除为 0
+     */
+    int logicalDeleteEntry(@Param("entryId") Long entryId);
+
+    /**
+     * 将指定知识条目下的全部正常文件标记为删除。
+     *
+     * @return 实际失效的文件数量；条目没有文件时可以为 0
+     */
+    int logicalDeleteFilesByEntryId(@Param("entryId") Long entryId);
 }

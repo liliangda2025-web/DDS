@@ -10,6 +10,7 @@ import org.mybatis.spring.boot.test.autoconfigure.MybatisTest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.test.context.jdbc.Sql;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -34,6 +35,10 @@ class KnowledgeEntryMapperTest {
 
     @Autowired
     private KnowledgeEntryMapper knowledgeEntryMapper;
+
+    /** 用于验证逻辑删除后数据库中的状态和删除标记，而不为测试向生产 Mapper 增加查询方法。 */
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     /**
      * 多个条件同时存在时只返回匹配条目，并正确映射 19 位字符串 ID 和当前文件信息。
@@ -157,5 +162,29 @@ class KnowledgeEntryMapperTest {
 
         assertEquals(0, knowledgeEntryMapper.countActiveById(deletedEntryId));
         assertEquals(0, knowledgeEntryMapper.updateEntry(deletedEntryId, request));
+    }
+
+    /** 逻辑删除应原子更新条目状态和删除标记，并失效全部正常关联文件。 */
+    @Test
+    void shouldLogicallyDeleteEntryAndFiles() {
+        long entryId = 2100000000000000001L;
+
+        assertEquals(1, knowledgeEntryMapper.logicalDeleteEntry(entryId));
+        assertEquals(1, knowledgeEntryMapper.logicalDeleteFilesByEntryId(entryId));
+
+        assertEquals(0, knowledgeEntryMapper.countActiveById(entryId));
+        assertEquals(0, jdbcTemplate.queryForObject(
+                "SELECT status FROM knowledge_entry WHERE id = ?", Integer.class, entryId));
+        assertEquals(entryId, jdbcTemplate.queryForObject(
+                "SELECT delete_marker FROM knowledge_entry WHERE id = ?", Long.class, entryId));
+        assertEquals(0, jdbcTemplate.queryForObject(
+                "SELECT status FROM knowledge_file WHERE entry_id = ?", Integer.class, entryId));
+    }
+
+    /** 再次删除已删除条目时不应影响任何记录。 */
+    @Test
+    void shouldIgnoreAlreadyDeletedEntry() {
+        assertEquals(0, knowledgeEntryMapper.logicalDeleteEntry(2100000000000000003L));
+        assertEquals(0, knowledgeEntryMapper.logicalDeleteFilesByEntryId(2100000000000000003L));
     }
 }

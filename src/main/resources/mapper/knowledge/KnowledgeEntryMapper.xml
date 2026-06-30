@@ -174,4 +174,27 @@
           AND status = 1
     </update>
 
+    <!--
+        delete_marker 必须与 status 在同一条 SQL 中更新，既保证逻辑删除原子性，
+        又释放有效记录使用的业务唯一键，使相同业务键可以在删除后重新创建。
+    -->
+    <update id="logicalDeleteEntry">
+        UPDATE knowledge_entry
+        SET delete_marker = id,
+            status = 0,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{entryId}
+          AND status = 1
+    </update>
+
+    <!--
+        条目删除后，其历史文件和当前文件都不应继续作为有效资源使用，因此失效该条目下的全部正常文件。
+    -->
+    <update id="logicalDeleteFilesByEntryId">
+        UPDATE knowledge_file
+        SET status = 0
+        WHERE entry_id = #{entryId}
+          AND status = 1
+    </update>
+
 </mapper>

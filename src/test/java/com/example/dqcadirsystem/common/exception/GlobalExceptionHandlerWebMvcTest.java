@@ -47,7 +47,7 @@ class GlobalExceptionHandlerWebMvcTest {
     void shouldReturnWrappedSuccessResponse() throws Exception {
         mockMvc.perform(get("/test/success"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.message").value("操作成功"))
                 .andExpect(jsonPath("$.data").value("result"));
     }
@@ -57,7 +57,7 @@ class GlobalExceptionHandlerWebMvcTest {
     void shouldKeepNullDataInEmptySuccessResponse() throws Exception {
         mockMvc.perform(get("/test/empty"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.message").value("操作成功"))
                 .andExpect(jsonPath("$.data").value(nullValue()));
     }

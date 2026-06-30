@@ -11,7 +11,7 @@ import org.springframework.http.HttpStatus;
 public enum CommonErrorCode implements ErrorCode {
 
     /** 请求成功。 */
-    SUCCESS(0, "操作成功", HttpStatus.OK),
+    SUCCESS(200, "操作成功", HttpStatus.OK),
 
     /** 请求参数缺失、类型错误、校验失败或请求体无法解析。 */
     BAD_REQUEST(40000, "请求参数错误", HttpStatus.BAD_REQUEST),

@@ -15,7 +15,7 @@ import java.util.Objects;
  * <p>{@code code} 是应用内部业务码，不等同于 HTTP 状态码。HTTP 状态码由异常处理器通过
  * {@link org.springframework.http.ResponseEntity} 单独设置。</p>
  *
- * @param code    应用业务码；成功固定为 0，失败使用五位错误码
+ * @param code    应用业务码；成功固定为 200，失败使用五位错误码
  * @param message 可直接展示或供前端判断的提示信息
  * @param data    实际响应数据；没有数据时仍会序列化为 {@code null}
  * @param <T>     响应数据的具体类型
@@ -44,7 +44,7 @@ public record ApiResponse<T>(int code, String message, T data) {
     /**
      * 使用自定义成功提示创建成功结果。
      *
-     * <p>业务码仍然固定为 0，只改变提示语。例如某些提交接口可以返回“提交成功”。</p>
+     * <p>业务码仍然固定为 200，只改变提示语。例如某些提交接口可以返回“提交成功”。</p>
      */
     public static <T> ApiResponse<T> success(String message, T data) {
         return new ApiResponse<>(CommonErrorCode.SUCCESS.code(), message, data);

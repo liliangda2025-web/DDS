@@ -1,3 +1,8 @@
 spring:
   application:
     name: DQCADIRSystem
+  datasource:
+    username: root
+    password: 1234
+    url: jdbc:mysql://localhost:3306/dds?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=ShangHai
+    driver-class-name: com.mysql.cj.jdbc.Driver

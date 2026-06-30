@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.dqcadirsystem.knowledge.mapper.KnowledgeEntryMapper">
+
+    <!--
+        管理列表以知识条目为主表，使用 LEFT JOIN 保留暂时没有当前文件的知识条目。
+        文件条件写在 JOIN 中，避免把没有文件的知识条目从无文件名查询中排除。
+    -->
+    <sql id="pageFromAndWhere">
+        FROM knowledge_entry e
+        LEFT JOIN knowledge_file f
+          ON e.id = f.entry_id
+         AND f.is_current = 1
+         AND f.status = 1
+        WHERE e.status = 1
+        <if test="request.entryType != null">
+            AND e.entry_type = #{request.entryType}
+        </if>
+        <if test="request.fileName != null">
+            AND f.original_file_name LIKE CONCAT('%', #{request.fileName}, '%')
+        </if>
+        <if test="request.entryCode != null">
+            AND e.entry_code LIKE CONCAT('%', #{request.entryCode}, '%')
+        </if>
+        <if test="request.title != null">
+            AND e.title LIKE CONCAT('%', #{request.title}, '%')
+        </if>
+        <if test="request.professionCode != null">
+            AND e.profession_code = #{request.professionCode}
+        </if>
+        <if test="request.infoStatus != null">
+            AND e.info_status = #{request.infoStatus}
+        </if>
+        <if test="request.startDate != null">
+            AND e.release_date <![CDATA[ >= ]]> #{request.startDate}
+        </if>
+        <if test="request.endDate != null">
+            AND e.release_date <![CDATA[ <= ]]> #{request.endDate}
+        </if>
+    </sql>
+
+    <select id="countPage" resultType="long">
+        SELECT COUNT(DISTINCT e.id)
+        <include refid="pageFromAndWhere"/>
+    </select>
+
+    <select id="selectPage"
+            resultType="com.example.dqcadirsystem.knowledge.mapper.model.KnowledgeEntryPageRow">
+        <!-- CONCAT 空字符串可在 MySQL 与测试用 H2 中完整地把 BIGINT 转换为字符串。 -->
+        SELECT CONCAT('', e.id) AS entry_id,
+               CASE WHEN f.id IS NULL THEN NULL ELSE CONCAT('', f.id) END AS file_id,
+               e.entry_type,
+               e.entry_code,
+               e.title,
+               e.secret_level,
+               e.version,
+               e.release_date,
+               f.file_ext AS file_type,
+               e.profession_code,
+               e.author_name,
+               e.info_status,
+               f.original_file_name,
+               f.file_url,
+               e.created_at,
+               e.updated_at
+        <include refid="pageFromAndWhere"/>
+        ORDER BY e.created_at DESC, e.id DESC
+        LIMIT #{request.offset}, #{request.pageSize}
+    </select>
+
+    <!--
+        详情查询使用 LEFT JOIN，保证已经创建但尚未上传当前文件的条目仍可被查看。
+        文件状态条件必须放在 JOIN 中；如果放到 WHERE 中，无文件条目会被错误过滤。
+        正常数据应当至多存在一个当前有效文件，ORDER BY 与 LIMIT 1 是对历史异常数据的防御性处理。
+    -->
+    <select id="selectDetail"
+            resultType="com.example.dqcadirsystem.knowledge.mapper.model.KnowledgeEntryDetailRow">
+        SELECT CONCAT('', e.id) AS entry_id,
+               e.entry_type,
+               e.entry_code,
+               e.title,
+               e.keywords,
+               e.version,
+               e.project_name,
+               e.release_date,
+               e.system_source,
+               e.profession_code,
+               e.author_name,
+               e.secret_level,
+               e.info_status,
+               CASE WHEN f.id IS NULL THEN NULL ELSE CONCAT('', f.id) END AS file_id,
+               f.original_file_name,
+               f.file_ext AS file_type,
+               f.file_size,
+               f.file_url,
+               f.upload_status,
+               f.uploaded_at
+        FROM knowledge_entry e
+        LEFT JOIN knowledge_file f
+          ON e.id = f.entry_id
+         AND f.is_current = 1
+         AND f.status = 1
+        WHERE e.id = #{entryId}
+          AND e.status = 1
+        ORDER BY f.uploaded_at DESC, f.id DESC
+        LIMIT 1
+    </select>
+
+</mapper>

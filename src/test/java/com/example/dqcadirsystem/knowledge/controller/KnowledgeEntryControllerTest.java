@@ -1,0 +1,151 @@
+package com.example.dqcadirsystem.knowledge.controller;
+
+import com.example.dqcadirsystem.common.api.PageResponse;
+import com.example.dqcadirsystem.common.exception.BusinessException;
+import com.example.dqcadirsystem.common.exception.CommonErrorCode;
+import com.example.dqcadirsystem.common.exception.GlobalExceptionHandler;
+import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryPageRequest;
+import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeCurrentFileResponse;
+import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeEntryDetailResponse;
+import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeEntryPageItemResponse;
+import com.example.dqcadirsystem.knowledge.service.KnowledgeEntryService;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+/**
+ * 知识条目查询接口的 Web 层契约测试。
+ */
+@WebMvcTest(KnowledgeEntryController.class)
+@Import(GlobalExceptionHandler.class)
+class KnowledgeEntryControllerTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    /** Service 在 Web 层测试中使用模拟对象，Controller 测试不连接数据库。 */
+    @MockitoBean
+    private KnowledgeEntryService knowledgeEntryService;
+
+    /**
+     * 验证外部完整路径、统一响应、分页元数据、字符串 ID 和时间格式。
+     */
+    @Test
+    void shouldReturnKnowledgeEntryPage() throws Exception {
+        KnowledgeEntryPageItemResponse item = new KnowledgeEntryPageItemResponse(
+                "2100000000000000001",
+                "2200000000000000001",
+                "DRAWING",
+                "图纸库",
+                "DWG-HVAC-001",
+                "总部办公楼暖通空调设计图1",
+                "内部",
+                "V1.0",
+                LocalDate.of(2026, 6, 26),
+                "pdf",
+                "HVAC",
+                "张工",
+                1,
+                "已完善",
+                "总部办公楼暖通空调设计图1.pdf",
+                "/uploads/knowledge/2100000000000000001.pdf",
+                LocalDateTime.of(2026, 6, 30, 10, 0),
+                LocalDateTime.of(2026, 6, 30, 10, 0));
+        when(knowledgeEntryService.pageEntries(any(KnowledgeEntryPageRequest.class)))
+                .thenReturn(PageResponse.of(1, 1, 10, List.of(item)));
+
+        mockMvc.perform(post("/api/knowledge/entries/page")
+                        .contextPath("/api")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.message").value("操作成功"))
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.pageNum").value(1))
+                .andExpect(jsonPath("$.data.pageSize").value(10))
+                .andExpect(jsonPath("$.data.pages").value(1))
+                .andExpect(jsonPath("$.data.records[0].entryId").value("2100000000000000001"))
+                .andExpect(jsonPath("$.data.records[0].entryTypeName").value("图纸库"))
+                .andExpect(jsonPath("$.data.records[0].createdAt").value("2026-06-30 10:00:00"));
+    }
+
+    /** 验证页码不合法时由统一异常处理器返回参数错误。 */
+    @Test
+    void shouldRejectInvalidPageNumber() throws Exception {
+        mockMvc.perform(post("/api/knowledge/entries/page")
+                        .contextPath("/api")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"pageNum\":0}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(40000))
+                .andExpect(jsonPath("$.message").value("页码必须大于等于1"));
+    }
+
+    /** 验证详情接口字段、嵌套当前文件、字符串 ID 和时间格式与接口文档一致。 */
+    @Test
+    void shouldReturnKnowledgeEntryDetail() throws Exception {
+        KnowledgeCurrentFileResponse currentFile = new KnowledgeCurrentFileResponse(
+                "2200000000000000001",
+                "总部办公楼暖通空调设计图1.pdf",
+                "pdf",
+                2048000L,
+                "/uploads/knowledge/2100000000000000001.pdf",
+                "success",
+                LocalDateTime.of(2026, 6, 30, 10, 0));
+        KnowledgeEntryDetailResponse detail = new KnowledgeEntryDetailResponse(
+                "2100000000000000001", "DRAWING", "图纸库", "DWG-HVAC-001",
+                "总部办公楼暖通空调设计图1", "总部 暖通 空调", "V1.0", "总部项目",
+                LocalDate.of(2026, 6, 26), "图纸库", "HVAC", "张工", "内部",
+                1, "已完善", currentFile);
+        when(knowledgeEntryService.getEntryDetail(2100000000000000001L)).thenReturn(detail);
+
+        mockMvc.perform(get("/api/knowledge/entries/2100000000000000001").contextPath("/api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.message").value("操作成功"))
+                .andExpect(jsonPath("$.data.entryId").value("2100000000000000001"))
+                .andExpect(jsonPath("$.data.entryTypeName").value("图纸库"))
+                .andExpect(jsonPath("$.data.infoStatusName").value("已完善"))
+                .andExpect(jsonPath("$.data.currentFile.fileId").value("2200000000000000001"))
+                .andExpect(jsonPath("$.data.currentFile.fileSize").value(2048000))
+                .andExpect(jsonPath("$.data.currentFile.uploadedAt").value("2026-06-30 10:00:00"));
+    }
+
+    /** Service 判定资源不存在时，统一异常处理器应返回 HTTP 404 和业务码 40400。 */
+    @Test
+    void shouldReturnNotFoundWhenEntryDoesNotExist() throws Exception {
+        when(knowledgeEntryService.getEntryDetail(999L))
+                .thenThrow(new BusinessException(CommonErrorCode.NOT_FOUND, "知识条目不存在"));
+
+        mockMvc.perform(get("/api/knowledge/entries/999").contextPath("/api"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value(40400))
+                .andExpect(jsonPath("$.message").value("知识条目不存在"))
+                .andExpect(jsonPath("$.data").isEmpty());
+    }
+
+    /** 非正数 ID 不应进入 Service，而应直接返回统一参数错误。 */
+    @Test
+    void shouldRejectNonPositiveEntryId() throws Exception {
+        mockMvc.perform(get("/api/knowledge/entries/0").contextPath("/api"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(40000))
+                .andExpect(jsonPath("$.message").value("知识条目ID必须大于0"));
+    }
+}

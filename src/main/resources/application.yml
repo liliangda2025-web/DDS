@@ -4,7 +4,7 @@ spring:
   datasource:
     username: root
     password: 1234
-    url: jdbc:mysql://localhost:3306/dds?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=ShangHai
+    url: jdbc:mysql://localhost:3306/dds?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=UTC
     driver-class-name: com.mysql.cj.jdbc.Driver
 
 # 所有 Controller 的统一访问前缀。
@@ -12,3 +12,10 @@ spring:
 server:
   servlet:
     context-path: /api
+
+# MyBatis 映射文件和字段命名转换配置。
+# 数据库使用 snake_case，Java 使用 camelCase，由 MyBatis 自动完成名称映射。
+mybatis:
+  mapper-locations: classpath*:mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true

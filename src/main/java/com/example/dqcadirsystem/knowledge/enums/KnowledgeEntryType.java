@@ -1,5 +1,8 @@
 package com.example.dqcadirsystem.knowledge.enums;
 
+import java.util.Arrays;
+import java.util.Optional;
+
 /**
  * 知识条目类型枚举。
  *
@@ -46,5 +49,30 @@ public enum KnowledgeEntryType {
      */
     public String label() {
         return label;
+    }
+
+    /**
+     * 按接口和数据库中的稳定编码查找知识条目类型。
+     *
+     * <p>返回 {@link Optional} 而不是直接抛出异常，调用方可以根据使用场景决定把未知值视为请求参数错误，
+     * 还是数据库数据完整性错误。</p>
+     *
+     * @param value 待查找的类型编码
+     * @return 匹配的枚举；编码为空或不存在时返回空
+     */
+    public static Optional<KnowledgeEntryType> fromValue(String value) {
+        if (value == null) {
+            return Optional.empty();
+        }
+        return Arrays.stream(values())
+                .filter(type -> type.value().equals(value))
+                .findFirst();
+    }
+
+    /**
+     * 判断给定编码是否为系统支持的知识条目类型。
+     */
+    public static boolean isValid(String value) {
+        return fromValue(value).isPresent();
     }
 }

@@ -4,6 +4,7 @@ import com.example.dqcadirsystem.common.api.ApiResponse;
 import com.example.dqcadirsystem.common.api.PageResponse;
 import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryCreateRequest;
 import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryPageRequest;
+import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryUpdateRequest;
 import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeEntryCreateResponse;
 import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeEntryDetailResponse;
 import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeEntryPageItemResponse;
@@ -14,6 +15,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -65,5 +67,17 @@ public class KnowledgeEntryController {
     public ApiResponse<KnowledgeEntryCreateResponse> createEntry(
             @Valid @RequestBody KnowledgeEntryCreateRequest request) {
         return ApiResponse.success("新增成功", knowledgeEntryService.createEntry(request));
+    }
+
+    /**
+     * 修改指定知识条目的业务元数据。
+     *
+     * <p>修改操作不影响当前文件；关键字段经过必填校验后，保存成功会把条目标记为“已完善”。</p>
+     */
+    @PutMapping("/{entryId}")
+    public ApiResponse<Boolean> updateEntry(
+            @PathVariable @Positive(message = "知识条目ID必须大于0") Long entryId,
+            @Valid @RequestBody KnowledgeEntryUpdateRequest request) {
+        return ApiResponse.success("修改成功", knowledgeEntryService.updateEntry(entryId, request));
     }
 }

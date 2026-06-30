@@ -2,6 +2,7 @@ package com.example.dqcadirsystem.knowledge.mapper;
 
 import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryCreateRequest;
 import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryPageRequest;
+import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryUpdateRequest;
 import com.example.dqcadirsystem.knowledge.mapper.model.KnowledgeEntryDetailRow;
 import com.example.dqcadirsystem.knowledge.mapper.model.KnowledgeEntryPageRow;
 import org.junit.jupiter.api.Test;
@@ -104,7 +105,7 @@ class KnowledgeEntryMapperTest {
                 "LAW", "LAW-NEW-001", "新增法规", "新增 法规", "2026版",
                 "法规库", LocalDate.of(2026, 6, 30), "法规库", "LAW", "法规管理员", "公开");
 
-        assertEquals(0, knowledgeEntryMapper.countActiveByBusinessKey(request));
+        assertEquals(0, knowledgeEntryMapper.countActiveByBusinessKey(request, null));
         assertEquals(1, knowledgeEntryMapper.insertEntry(2100000000000000099L, request));
 
         KnowledgeEntryDetailRow row = knowledgeEntryMapper.selectDetail(2100000000000000099L);
@@ -113,7 +114,7 @@ class KnowledgeEntryMapperTest {
         assertEquals("法规库", row.projectName());
         assertEquals(1, row.infoStatus());
         assertNull(row.fileId());
-        assertEquals(1, knowledgeEntryMapper.countActiveByBusinessKey(request));
+        assertEquals(1, knowledgeEntryMapper.countActiveByBusinessKey(request, null));
     }
 
     /** 业务键检查应识别现有正常记录。 */
@@ -123,6 +124,38 @@ class KnowledgeEntryMapperTest {
                 "DRAWING", "DWG-HVAC-001", "任意标题", null, "V1.0",
                 null, null, null, null, null, null);
 
-        assertEquals(1, knowledgeEntryMapper.countActiveByBusinessKey(request));
+        assertEquals(1, knowledgeEntryMapper.countActiveByBusinessKey(request, null));
+    }
+
+    /** 修改 SQL 应更新全部业务元数据、标记为已完善，并保留原有当前文件。 */
+    @Test
+    void shouldUpdateKnowledgeEntry() {
+        long entryId = 2100000000000000001L;
+        KnowledgeEntryUpdateRequest request = new KnowledgeEntryUpdateRequest(
+                "DRAWING", "DWG-HVAC-001", "修改后的暖通图纸", "修改 暖通", "V1.1",
+                "修改项目", LocalDate.of(2026, 7, 1), "新图纸库", "HVAC", "新编写人", "机密");
+
+        assertEquals(1, knowledgeEntryMapper.countActiveById(entryId));
+        assertEquals(0, knowledgeEntryMapper.countActiveByBusinessKey(request, entryId));
+        assertEquals(1, knowledgeEntryMapper.updateEntry(entryId, request));
+
+        KnowledgeEntryDetailRow row = knowledgeEntryMapper.selectDetail(entryId);
+        assertEquals("修改后的暖通图纸", row.title());
+        assertEquals("V1.1", row.version());
+        assertEquals("修改项目", row.projectName());
+        assertEquals(1, row.infoStatus());
+        assertEquals("2200000000000000001", row.fileId());
+    }
+
+    /** 更新条件必须阻止已逻辑删除条目被重新激活或修改。 */
+    @Test
+    void shouldNotUpdateLogicallyDeletedEntry() {
+        long deletedEntryId = 2100000000000000003L;
+        KnowledgeEntryUpdateRequest request = new KnowledgeEntryUpdateRequest(
+                "LAW", "LAW-001", "尝试修改删除记录", null, "V2.0",
+                null, null, null, null, null, null);
+
+        assertEquals(0, knowledgeEntryMapper.countActiveById(deletedEntryId));
+        assertEquals(0, knowledgeEntryMapper.updateEntry(deletedEntryId, request));
     }
 }

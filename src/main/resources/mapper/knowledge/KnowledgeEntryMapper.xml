@@ -120,6 +120,9 @@
           AND version = #{request.version}
           AND status = 1
           AND delete_marker = 0
+        <if test="excludedEntryId != null">
+            AND id != #{excludedEntryId}
+        </if>
     </select>
 
     <!--
@@ -139,5 +142,36 @@
             1, 1, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
         )
     </insert>
+
+    <!-- 逻辑删除记录对所有维护接口都视为不存在。 -->
+    <select id="countActiveById" resultType="int">
+        SELECT COUNT(1)
+        FROM knowledge_entry
+        WHERE id = #{entryId}
+          AND status = 1
+    </select>
+
+    <!--
+        修改接口只维护条目元数据，不改变当前文件、创建信息或删除标记。
+        四个关键字段经过必填校验，因此成功保存后 info_status 固定更新为 1（已完善）。
+    -->
+    <update id="updateEntry">
+        UPDATE knowledge_entry
+        SET entry_type = #{request.entryType},
+            entry_code = #{request.entryCode},
+            title = #{request.title},
+            keywords = #{request.keywords},
+            version = #{request.version},
+            project_name = #{request.projectName},
+            release_date = #{request.releaseDate},
+            system_source = #{request.systemSource},
+            profession_code = #{request.professionCode},
+            author_name = #{request.authorName},
+            secret_level = #{request.secretLevel},
+            info_status = 1,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{entryId}
+          AND status = 1
+    </update>
 
 </mapper>

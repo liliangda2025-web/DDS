@@ -6,6 +6,7 @@ import com.example.dqcadirsystem.common.exception.CommonErrorCode;
 import com.example.dqcadirsystem.common.id.LongIdGenerator;
 import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryCreateRequest;
 import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryPageRequest;
+import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryUpdateRequest;
 import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeEntryCreateResponse;
 import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeEntryDetailResponse;
 import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeEntryPageItemResponse;
@@ -146,7 +147,7 @@ class KnowledgeEntryServiceTest {
     @Test
     void shouldCreateKnowledgeEntry() {
         KnowledgeEntryCreateRequest request = createRequest("DRAWING", "DWG-NEW-001", "V1.0");
-        when(knowledgeEntryMapper.countActiveByBusinessKey(request)).thenReturn(0);
+        when(knowledgeEntryMapper.countActiveByBusinessKey(request, null)).thenReturn(0);
         when(longIdGenerator.nextId()).thenReturn(2100000000000000099L);
         when(knowledgeEntryMapper.insertEntry(2100000000000000099L, request)).thenReturn(1);
 
@@ -166,7 +167,7 @@ class KnowledgeEntryServiceTest {
 
         assertEquals(CommonErrorCode.BAD_REQUEST, exception.getErrorCode());
         assertEquals("知识条目类型不合法", exception.getMessage());
-        verify(knowledgeEntryMapper, never()).countActiveByBusinessKey(request);
+        verify(knowledgeEntryMapper, never()).countActiveByBusinessKey(request, null);
         verify(longIdGenerator, never()).nextId();
     }
 
@@ -174,7 +175,7 @@ class KnowledgeEntryServiceTest {
     @Test
     void shouldRejectDuplicateBusinessKeyBeforeInsert() {
         KnowledgeEntryCreateRequest request = createRequest("DRAWING", "DWG-HVAC-001", "V1.0");
-        when(knowledgeEntryMapper.countActiveByBusinessKey(request)).thenReturn(1);
+        when(knowledgeEntryMapper.countActiveByBusinessKey(request, null)).thenReturn(1);
 
         BusinessException exception = assertThrows(
                 BusinessException.class, () -> knowledgeEntryService.createEntry(request));
@@ -191,13 +192,74 @@ class KnowledgeEntryServiceTest {
     void shouldTranslateConcurrentDuplicateKeyToBusinessException() {
         KnowledgeEntryCreateRequest request = createRequest("DRAWING", "DWG-NEW-001", "V1.0");
         // 第一次检查尚不存在；模拟另一事务抢先插入后，异常兜底检查能够看到重复记录。
-        when(knowledgeEntryMapper.countActiveByBusinessKey(request)).thenReturn(0, 1);
+        when(knowledgeEntryMapper.countActiveByBusinessKey(request, null)).thenReturn(0, 1);
         when(longIdGenerator.nextId()).thenReturn(2100000000000000099L);
         when(knowledgeEntryMapper.insertEntry(2100000000000000099L, request))
                 .thenThrow(new DuplicateKeyException("duplicate business key"));
 
         BusinessException exception = assertThrows(
                 BusinessException.class, () -> knowledgeEntryService.createEntry(request));
+
+        assertEquals(CommonErrorCode.BUSINESS_ERROR, exception.getErrorCode());
+        assertEquals("相同类型、条目编码和版本的知识条目已存在", exception.getMessage());
+    }
+
+    /** 正常修改应排除当前条目进行重复检查，并返回 true。 */
+    @Test
+    void shouldUpdateKnowledgeEntry() {
+        KnowledgeEntryUpdateRequest request = updateRequest("DRAWING", "DWG-HVAC-001", "V1.1");
+        when(knowledgeEntryMapper.countActiveById(2100000000000000001L)).thenReturn(1);
+        when(knowledgeEntryMapper.countActiveByBusinessKey(request, 2100000000000000001L)).thenReturn(0);
+        when(knowledgeEntryMapper.updateEntry(2100000000000000001L, request)).thenReturn(1);
+
+        boolean result = knowledgeEntryService.updateEntry(2100000000000000001L, request);
+
+        assertEquals(true, result);
+        verify(knowledgeEntryMapper).updateEntry(2100000000000000001L, request);
+    }
+
+    /** 不存在或已逻辑删除的条目不允许修改。 */
+    @Test
+    void shouldRejectUpdateWhenEntryDoesNotExist() {
+        KnowledgeEntryUpdateRequest request = updateRequest("DRAWING", "DWG-HVAC-001", "V1.1");
+        when(knowledgeEntryMapper.countActiveById(999L)).thenReturn(0);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class, () -> knowledgeEntryService.updateEntry(999L, request));
+
+        assertEquals(CommonErrorCode.NOT_FOUND, exception.getErrorCode());
+        assertEquals("知识条目不存在", exception.getMessage());
+        verify(knowledgeEntryMapper, never()).updateEntry(999L, request);
+    }
+
+    /** 修改后的业务键不得与另一条正常记录重复。 */
+    @Test
+    void shouldRejectDuplicateBusinessKeyWhenUpdating() {
+        KnowledgeEntryUpdateRequest request = updateRequest("DRAWING", "DWG-CIVIL-002", "V1.0");
+        when(knowledgeEntryMapper.countActiveById(2100000000000000001L)).thenReturn(1);
+        when(knowledgeEntryMapper.countActiveByBusinessKey(request, 2100000000000000001L)).thenReturn(1);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> knowledgeEntryService.updateEntry(2100000000000000001L, request));
+
+        assertEquals(CommonErrorCode.BUSINESS_ERROR, exception.getErrorCode());
+        verify(knowledgeEntryMapper, never()).updateEntry(2100000000000000001L, request);
+    }
+
+    /** 并发占用业务键导致数据库冲突时，应转换为与前置检查一致的业务异常。 */
+    @Test
+    void shouldTranslateConcurrentDuplicateWhenUpdating() {
+        KnowledgeEntryUpdateRequest request = updateRequest("DRAWING", "DWG-NEW-001", "V1.0");
+        when(knowledgeEntryMapper.countActiveById(2100000000000000001L)).thenReturn(1);
+        when(knowledgeEntryMapper.countActiveByBusinessKey(request, 2100000000000000001L))
+                .thenReturn(0, 1);
+        when(knowledgeEntryMapper.updateEntry(2100000000000000001L, request))
+                .thenThrow(new DuplicateKeyException("duplicate business key"));
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> knowledgeEntryService.updateEntry(2100000000000000001L, request));
 
         assertEquals(CommonErrorCode.BUSINESS_ERROR, exception.getErrorCode());
         assertEquals("相同类型、条目编码和版本的知识条目已存在", exception.getMessage());
@@ -214,6 +276,13 @@ class KnowledgeEntryServiceTest {
         return new KnowledgeEntryCreateRequest(
                 entryType, entryCode, "新增知识条目", "新增 知识", version,
                 null, LocalDate.of(2026, 6, 30), null, null, null, null);
+    }
+
+    /** 创建一条字段完整的修改请求。 */
+    private KnowledgeEntryUpdateRequest updateRequest(String entryType, String entryCode, String version) {
+        return new KnowledgeEntryUpdateRequest(
+                entryType, entryCode, "修改后的知识条目", "修改 知识", version,
+                "修改项目", LocalDate.of(2026, 7, 1), "知识库", "HVAC", "修改人", "内部");
     }
 
     /** 创建一条详情测试投影；fileId 为空时同步清空全部文件字段。 */

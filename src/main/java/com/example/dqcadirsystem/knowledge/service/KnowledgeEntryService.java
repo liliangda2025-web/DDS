@@ -6,6 +6,7 @@ import com.example.dqcadirsystem.common.exception.CommonErrorCode;
 import com.example.dqcadirsystem.common.id.LongIdGenerator;
 import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryCreateRequest;
 import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryPageRequest;
+import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryUpdateRequest;
 import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeEntryCreateResponse;
 import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeEntryDetailResponse;
 import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeEntryPageItemResponse;
@@ -78,7 +79,7 @@ public class KnowledgeEntryService {
     @Transactional
     public KnowledgeEntryCreateResponse createEntry(KnowledgeEntryCreateRequest request) {
         validateEntryType(request.entryType());
-        if (knowledgeEntryMapper.countActiveByBusinessKey(request) > 0) {
+        if (knowledgeEntryMapper.countActiveByBusinessKey(request, null) > 0) {
             throw duplicateEntryException();
         }
 
@@ -91,12 +92,46 @@ public class KnowledgeEntryService {
             }
         } catch (DuplicateKeyException exception) {
             // 只有业务键确实已经存在时才转换提示；若是节点号配置错误造成主键冲突，则保留系统异常以便排查。
-            if (knowledgeEntryMapper.countActiveByBusinessKey(request) > 0) {
+            if (knowledgeEntryMapper.countActiveByBusinessKey(request, null) > 0) {
                 throw duplicateEntryException();
             }
             throw exception;
         }
         return KnowledgeEntryCreateResponse.from(entryId);
+    }
+
+    /**
+     * 修改正常状态知识条目的业务元数据。
+     *
+     * <p>重复检查排除当前条目自身，因此原值保存属于合法的幂等操作。更新 SQL 只操作 {@code status = 1}
+     * 的记录，并在影响行数为 0 时再次确认条目状态，以兼容数据库“值没有变化时返回 0”的配置。</p>
+     */
+    @Transactional
+    public boolean updateEntry(Long entryId, KnowledgeEntryUpdateRequest request) {
+        validateEntryType(request.entryType());
+        ensureEntryExists(entryId);
+
+        if (knowledgeEntryMapper.countActiveByBusinessKey(request, entryId) > 0) {
+            throw duplicateEntryException();
+        }
+
+        try {
+            int updatedRows = knowledgeEntryMapper.updateEntry(entryId, request);
+            if (updatedRows > 1) {
+                throw new IllegalStateException("修改知识条目影响行数异常: " + updatedRows);
+            }
+            if (updatedRows == 0 && knowledgeEntryMapper.countActiveById(entryId) == 0) {
+                // 前置检查后条目可能被另一事务逻辑删除，此时仍应按资源不存在响应。
+                throw entryNotFoundException();
+            }
+        } catch (DuplicateKeyException exception) {
+            // 并发修改可能在前置检查后占用目标业务键，数据库唯一键负责最终防线。
+            if (knowledgeEntryMapper.countActiveByBusinessKey(request, entryId) > 0) {
+                throw duplicateEntryException();
+            }
+            throw exception;
+        }
+        return true;
     }
 
     private void validateRequest(KnowledgeEntryPageRequest request) {
@@ -114,6 +149,17 @@ public class KnowledgeEntryService {
         if (!KnowledgeEntryType.isValid(entryType)) {
             throw new BusinessException(CommonErrorCode.BAD_REQUEST, "知识条目类型不合法");
         }
+    }
+
+    /** 正常条目不存在时抛出与详情接口一致的 404 业务异常。 */
+    private void ensureEntryExists(Long entryId) {
+        if (knowledgeEntryMapper.countActiveById(entryId) == 0) {
+            throw entryNotFoundException();
+        }
+    }
+
+    private BusinessException entryNotFoundException() {
+        return new BusinessException(CommonErrorCode.NOT_FOUND, "知识条目不存在");
     }
 
     /** 构造业务键重复异常，保证前置检查和数据库兜底使用完全一致的响应。 */

@@ -1,7 +1,9 @@
 package com.example.dqcadirsystem.knowledge.mapper;
 
 import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryCreateRequest;
+import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryBusinessKey;
 import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryPageRequest;
+import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryUpdateRequest;
 import com.example.dqcadirsystem.knowledge.mapper.model.KnowledgeEntryDetailRow;
 import com.example.dqcadirsystem.knowledge.mapper.model.KnowledgeEntryPageRow;
 import org.apache.ibatis.annotations.Mapper;
@@ -30,8 +32,13 @@ public interface KnowledgeEntryMapper {
      */
     KnowledgeEntryDetailRow selectDetail(@Param("entryId") Long entryId);
 
-    /** 查询是否存在相同类型、编码和版本的正常知识条目。 */
-    int countActiveByBusinessKey(@Param("request") KnowledgeEntryCreateRequest request);
+    /**
+     * 查询相同类型、编码和版本的正常知识条目数量。
+     *
+     * @param excludedEntryId 修改场景传当前条目 ID 以排除自身；新增场景传 {@code null}
+     */
+    int countActiveByBusinessKey(@Param("request") KnowledgeEntryBusinessKey request,
+                                 @Param("excludedEntryId") Long excludedEntryId);
 
     /**
      * 新增一条手工录入的知识条目。
@@ -40,4 +47,15 @@ public interface KnowledgeEntryMapper {
      */
     int insertEntry(@Param("entryId") long entryId,
                     @Param("request") KnowledgeEntryCreateRequest request);
+
+    /** 查询指定 ID 的正常知识条目是否存在。 */
+    int countActiveById(@Param("entryId") Long entryId);
+
+    /**
+     * 更新正常状态知识条目的业务元数据。
+     *
+     * @return 数据库报告的影响行数；目标不存在时为 0
+     */
+    int updateEntry(@Param("entryId") Long entryId,
+                    @Param("request") KnowledgeEntryUpdateRequest request);
 }

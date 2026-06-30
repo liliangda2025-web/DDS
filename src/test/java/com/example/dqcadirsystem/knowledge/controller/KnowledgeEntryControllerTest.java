@@ -6,6 +6,7 @@ import com.example.dqcadirsystem.common.exception.CommonErrorCode;
 import com.example.dqcadirsystem.common.exception.GlobalExceptionHandler;
 import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryCreateRequest;
 import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryPageRequest;
+import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryUpdateRequest;
 import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeCurrentFileResponse;
 import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeEntryDetailResponse;
 import com.example.dqcadirsystem.knowledge.dto.response.KnowledgeEntryCreateResponse;
@@ -27,6 +28,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -192,5 +194,49 @@ class KnowledgeEntryControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(40000))
                 .andExpect(jsonPath("$.message").value("标题不能为空"));
+    }
+
+    /** 验证修改接口的路径、请求体和成功响应结构。 */
+    @Test
+    void shouldUpdateKnowledgeEntry() throws Exception {
+        when(knowledgeEntryService.updateEntry(
+                org.mockito.ArgumentMatchers.eq(2100000000000000001L),
+                any(KnowledgeEntryUpdateRequest.class))).thenReturn(true);
+
+        mockMvc.perform(put("/api/knowledge/entries/2100000000000000001")
+                        .contextPath("/api")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "entryType": "DRAWING",
+                                  "entryCode": "DWG-HVAC-001",
+                                  "title": "修改后的暖通图纸",
+                                  "version": "V1.1",
+                                  "releaseDate": "2026-07-01"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.message").value("修改成功"))
+                .andExpect(jsonPath("$.data").value(true));
+    }
+
+    /** 修改接口的路径 ID 必须是正整数。 */
+    @Test
+    void shouldRejectUpdateWithNonPositiveEntryId() throws Exception {
+        mockMvc.perform(put("/api/knowledge/entries/0")
+                        .contextPath("/api")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "entryType": "DRAWING",
+                                  "entryCode": "DWG-HVAC-001",
+                                  "title": "修改后的暖通图纸",
+                                  "version": "V1.1"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(40000))
+                .andExpect(jsonPath("$.message").value("知识条目ID必须大于0"));
     }
 }

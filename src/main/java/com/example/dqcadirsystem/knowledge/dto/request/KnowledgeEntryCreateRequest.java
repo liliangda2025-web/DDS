@@ -46,7 +46,7 @@ public record KnowledgeEntryCreateRequest(
         String authorName,
 
         @Size(max = 50, message = "密级长度不能超过50个字符")
-        String secretLevel) {
+        String secretLevel) implements KnowledgeEntryBusinessKey {
 
     /**
      * 规范化所有文本字段，后续校验、重复判断和入库均使用同一组稳定值。

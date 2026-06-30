@@ -107,7 +107,8 @@ class GlobalExceptionHandlerWebMvcTest {
     void shouldHandleMalformedJson() throws Exception {
         mockMvc.perform(post("/test/validate")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}"))
+                        // 只发送左花括号，确保请求体是语法不完整的 JSON，而不是可正常解析的空对象。
+                        .content("{"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(40000))
                 .andExpect(jsonPath("$.message").value("请求体格式错误"));
@@ -169,7 +170,8 @@ class GlobalExceptionHandlerWebMvcTest {
             throw new BusinessException("库存不足");
         }
 
-        /** @Valid 会在进入方法体之前校验 CreateRequest。 */
+        /**  会在进入方法体之前校验 CreateRequest。 */
+        @Valid
         @PostMapping("/validate")
         ApiResponse<String> validate(@Valid @RequestBody CreateRequest request) {
             return ApiResponse.success(request.name());

@@ -16,7 +16,8 @@ import java.util.List;
  * 不接收参数，也不会访问数据库。</p>
  */
 @RestController
-@RequestMapping("/api/knowledge")
+// /api 由 application.yml 中的 server.servlet.context-path 统一配置，Controller 只声明模块路径。
+@RequestMapping("/knowledge")
 public class KnowledgeEntryTypeController {
 
     private final KnowledgeEntryTypeService knowledgeEntryTypeService;

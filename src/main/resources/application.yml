@@ -6,3 +6,9 @@ spring:
     password: 1234
     url: jdbc:mysql://localhost:3306/dds?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=ShangHai
     driver-class-name: com.mysql.cj.jdbc.Driver
+
+# 所有 Controller 的统一访问前缀。
+# Controller 类中只声明模块自身路径，例如 /knowledge；对外访问时由这里统一增加 /api。
+server:
+  servlet:
+    context-path: /api

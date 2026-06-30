@@ -33,7 +33,8 @@ class KnowledgeEntryTypeControllerTest {
      */
     @Test
     void shouldReturnAllKnowledgeEntryTypesInContractOrder() throws Exception {
-        mockMvc.perform(get("/api/knowledge/entry-types"))
+        // MockMvc 不会自动套用服务器 context path，因此这里显式声明 /api，模拟真实对外地址。
+        mockMvc.perform(get("/api/knowledge/entry-types").contextPath("/api"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.message").value("操作成功"))

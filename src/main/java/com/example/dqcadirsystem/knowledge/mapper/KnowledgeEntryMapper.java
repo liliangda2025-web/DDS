@@ -5,9 +5,12 @@ import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryBusinessKey
 import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryPageRequest;
 import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryUpdateRequest;
 import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeSupplementTemplateExportRequest;
+import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeSearchRequest;
 import com.example.dqcadirsystem.knowledge.mapper.model.KnowledgeEntryDetailRow;
+import com.example.dqcadirsystem.knowledge.mapper.model.KnowledgeEntryInfoImportFileRow;
 import com.example.dqcadirsystem.knowledge.mapper.model.KnowledgeEntryPageRow;
 import com.example.dqcadirsystem.knowledge.mapper.model.KnowledgeSupplementTemplateRow;
+import com.example.dqcadirsystem.knowledge.mapper.model.KnowledgeSearchRow;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -78,6 +81,20 @@ public interface KnowledgeEntryMapper {
                     @Param("request") KnowledgeEntryUpdateRequest request);
 
     /**
+     * 锁定批量信息导入的目标条目并返回其完善状态。
+     *
+     * @return 正常条目的 info_status；条目不存在或已删除时返回 {@code null}
+     */
+    Integer selectActiveInfoStatusForUpdate(@Param("entryId") Long entryId);
+
+    /**
+     * 查询指定条目下与模板 ID 对应的当前成功文件，并返回系统列核对所需字段。
+     */
+    KnowledgeEntryInfoImportFileRow selectValidImportFile(
+            @Param("entryId") Long entryId,
+            @Param("fileId") Long fileId);
+
+    /**
      * 逻辑删除一条正常知识条目，并把删除标记更新为该条目自身 ID。
      *
      * @return 删除成功为 1，条目不存在或已删除为 0
@@ -107,4 +124,10 @@ public interface KnowledgeEntryMapper {
     List<KnowledgeSupplementTemplateRow> selectPendingSupplementByFilter(
             @Param("request") KnowledgeSupplementTemplateExportRequest request,
             @Param("limit") int limit);
+
+    /** 统计符合关键词、可正常打开当前文件的已完善知识条目数量。 */
+    long countSearch(@Param("request") KnowledgeSearchRequest request);
+
+    /** 按更新时间倒序查询当前分页中的知识检索卡片。 */
+    List<KnowledgeSearchRow> selectSearch(@Param("request") KnowledgeSearchRequest request);
 }

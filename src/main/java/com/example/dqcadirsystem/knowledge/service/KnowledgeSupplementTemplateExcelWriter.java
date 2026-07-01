@@ -42,7 +42,13 @@ public class KnowledgeSupplementTemplateExcelWriter {
     private static final String SHEET_PROTECTION_PASSWORD = "dqcadirsystem-template";
     private static final String FONT_NAME = "Microsoft YaHei";
 
-    private static final List<String> HEADERS = List.of(
+    /**
+     * 模板固定表头，也是批量导入时校验文件结构的唯一基准。
+     *
+     * <p>列表本身不可修改；公开该常量是为了让导出和导入共用同一份协议，避免两处分别维护表头后
+     * 出现列名或顺序漂移。</p>
+     */
+    public static final List<String> HEADERS = List.of(
             "knowledge_entry_id", "knowledge_file_id", "文件名称", "文件格式", "文件大小", "上传时间", "上传状态",
             "知识条目类型", "文件编号 / 图纸编号", "标题", "关键词", "版本", "所属项目", "发版日期", "系统来源",
             "专业代码", "编写人", "密级");

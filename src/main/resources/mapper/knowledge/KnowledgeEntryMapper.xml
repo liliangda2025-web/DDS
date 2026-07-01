@@ -177,6 +177,39 @@
     </select>
 
     <!--
+        信息导入既要拒绝删除条目，也要区分“待补充”和“已经完善”。FOR UPDATE 保证同一条目被两个导入请求
+        并发处理时只有先获得锁的事务能够把 0 更新为 1，后获得锁的事务会看到最新的完善状态并返回单行失败。
+    -->
+    <select id="selectActiveInfoStatusForUpdate" resultType="int">
+        SELECT info_status
+        FROM knowledge_entry
+        WHERE id = #{entryId}
+          AND status = 1
+        FOR UPDATE
+    </select>
+
+    <!--
+        文件 ID 必须属于目标条目，并且仍然是正常、当前、上传成功文件。除了关系校验，返回的文件元数据还会
+        与 Excel 锁定列逐项核对，工作表保护被手工解除后也不能借此篡改系统定位信息。
+    -->
+    <select id="selectValidImportFile"
+            resultType="com.example.dqcadirsystem.knowledge.mapper.model.KnowledgeEntryInfoImportFileRow">
+        SELECT id AS file_id,
+               entry_id,
+               original_file_name,
+               file_ext AS file_type,
+               file_size,
+               uploaded_at,
+               upload_status
+        FROM knowledge_file
+        WHERE id = #{fileId}
+          AND entry_id = #{entryId}
+          AND status = 1
+          AND is_current = 1
+          AND upload_status = 'success'
+    </select>
+
+    <!--
         修改接口只维护条目元数据，不改变当前文件、创建信息或删除标记。
         四个关键字段经过必填校验，因此成功保存后 info_status 固定更新为 1（已完善）。
     -->
@@ -288,6 +321,64 @@
         </if>
         ORDER BY f.uploaded_at DESC, f.id DESC
         LIMIT #{limit}
+    </select>
+
+    <!--
+        当前检索只返回已完善条目及其最新当前成功文件。相关子查询与管理列表使用相同的确定性规则，
+        防止历史异常数据中存在多个 is_current=1 时，同一知识条目重复出现在卡片和分页计数中。
+    -->
+    <sql id="searchFromAndWhere">
+        FROM knowledge_entry e
+        INNER JOIN knowledge_file f
+                ON f.id = (
+                    SELECT current_file.id
+                    FROM knowledge_file current_file
+                    WHERE current_file.entry_id = e.id
+                      AND current_file.is_current = 1
+                      AND current_file.status = 1
+                      AND current_file.upload_status = 'success'
+                    ORDER BY current_file.uploaded_at DESC, current_file.id DESC
+                    LIMIT 1
+                )
+        WHERE e.status = 1
+          AND e.info_status = 1
+        <if test="request.entryType != null">
+          AND e.entry_type = #{request.entryType}
+        </if>
+          AND (
+               e.title LIKE CONCAT('%', #{request.queryText}, '%')
+            OR e.keywords LIKE CONCAT('%', #{request.queryText}, '%')
+            OR e.entry_code LIKE CONCAT('%', #{request.queryText}, '%')
+            OR e.project_name LIKE CONCAT('%', #{request.queryText}, '%')
+            OR e.system_source LIKE CONCAT('%', #{request.queryText}, '%')
+            OR e.profession_code LIKE CONCAT('%', #{request.queryText}, '%')
+            OR e.author_name LIKE CONCAT('%', #{request.queryText}, '%')
+            OR f.original_file_name LIKE CONCAT('%', #{request.queryText}, '%')
+          )
+    </sql>
+
+    <select id="countSearch" resultType="long">
+        SELECT COUNT(1)
+        <include refid="searchFromAndWhere"/>
+    </select>
+
+    <select id="selectSearch"
+            resultType="com.example.dqcadirsystem.knowledge.mapper.model.KnowledgeSearchRow">
+        SELECT CONCAT('', e.id) AS entry_id,
+               CONCAT('', f.id) AS file_id,
+               e.entry_type,
+               e.entry_code,
+               e.title,
+               e.keywords,
+               e.project_name,
+               e.system_source,
+               e.profession_code,
+               e.author_name,
+               f.original_file_name,
+               f.file_ext AS file_type
+        <include refid="searchFromAndWhere"/>
+        ORDER BY e.updated_at DESC, e.id DESC
+        LIMIT #{request.offset}, #{request.pageSize}
     </select>
 
 </mapper>

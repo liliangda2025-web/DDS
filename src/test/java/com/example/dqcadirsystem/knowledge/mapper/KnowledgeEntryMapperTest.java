@@ -5,6 +5,7 @@ import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryPageRequest
 import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryUpdateRequest;
 import com.example.dqcadirsystem.knowledge.mapper.model.KnowledgeEntryDetailRow;
 import com.example.dqcadirsystem.knowledge.mapper.model.KnowledgeEntryPageRow;
+import com.example.dqcadirsystem.knowledge.mapper.model.KnowledgeEntryInfoImportFileRow;
 import org.junit.jupiter.api.Test;
 import org.mybatis.spring.boot.test.autoconfigure.MybatisTest;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -152,6 +153,38 @@ class KnowledgeEntryMapperTest {
         assertEquals("修改项目", row.projectName());
         assertEquals(1, row.infoStatus());
         assertEquals("2200000000000000001", row.fileId());
+    }
+
+    /** 导入专用查询应锁定待补充条目，并只接受其当前正常且上传成功的文件。 */
+    @Test
+    void shouldQueryImportTargetAndUpdateInfoStatus() {
+        long entryId = 2100000000000000010L;
+        long fileId = 2200000000000000010L;
+        jdbcTemplate.update("""
+                INSERT INTO knowledge_entry (
+                    id, entry_type, entry_code, title, version, info_status, status,
+                    delete_marker, created_at, updated_at
+                ) VALUES (?, 'DRAWING', ?, '占位标题', 'TEMP', 0, 1, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """, entryId, "TMP_" + entryId);
+        jdbcTemplate.update("""
+                INSERT INTO knowledge_file (
+                    id, entry_id, original_file_name, file_ext, file_size, file_url,
+                    upload_status, is_current, uploaded_at, status
+                ) VALUES (?, ?, 'file.pdf', 'pdf', 100, 'https://bucket/file.pdf',
+                          'success', 1, TIMESTAMP '2026-07-01 10:00:00', 1)
+                """, fileId, entryId);
+
+        assertEquals(0, knowledgeEntryMapper.selectActiveInfoStatusForUpdate(entryId));
+        KnowledgeEntryInfoImportFileRow file =
+                knowledgeEntryMapper.selectValidImportFile(entryId, fileId);
+        assertEquals("file.pdf", file.originalFileName());
+
+        KnowledgeEntryUpdateRequest request = new KnowledgeEntryUpdateRequest(
+                "DRAWING", "DWG-001", "正式标题", null, "V1.0",
+                null, null, null, null, null, null);
+        assertEquals(1, knowledgeEntryMapper.updateEntry(entryId, request));
+        assertEquals(1, knowledgeEntryMapper.selectActiveInfoStatusForUpdate(entryId));
+        assertEquals(0, knowledgeEntryMapper.selectPendingSupplementByEntryIds(List.of(entryId)).size());
     }
 
     /** 更新条件必须阻止已逻辑删除条目被重新激活或修改。 */

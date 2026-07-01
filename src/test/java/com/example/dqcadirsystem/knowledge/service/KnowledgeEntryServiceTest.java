@@ -54,7 +54,7 @@ class KnowledgeEntryServiceTest {
         KnowledgeEntryPageRow row = new KnowledgeEntryPageRow(
                 "2100000000000000001", "2200000000000000001", "DRAWING", "DWG-HVAC-001",
                 "暖通图纸", "内部", "V1.0", LocalDate.of(2026, 6, 26), "pdf", "HVAC", "张工", 1,
-                "暖通图纸.pdf", "/uploads/knowledge/1.pdf",
+                "暖通图纸.pdf",
                 LocalDateTime.of(2026, 6, 30, 10, 0), LocalDateTime.of(2026, 6, 30, 10, 0));
         when(knowledgeEntryMapper.countPage(request)).thenReturn(11L);
         when(knowledgeEntryMapper.selectPage(request)).thenReturn(List.of(row));
@@ -375,7 +375,6 @@ class KnowledgeEntryServiceTest {
                 hasFile ? "总部办公楼暖通空调设计图1.pdf" : null,
                 hasFile ? "pdf" : null,
                 hasFile ? 2048000L : null,
-                hasFile ? "/uploads/knowledge/2100000000000000001.pdf" : null,
                 hasFile ? "success" : null,
                 hasFile ? LocalDateTime.of(2026, 6, 30, 10, 0) : null);
     }

@@ -2,11 +2,13 @@ package com.example.dqcadirsystem.knowledge.validation;
 
 import com.example.dqcadirsystem.common.exception.BusinessException;
 import com.example.dqcadirsystem.knowledge.enums.KnowledgeFileType;
+import org.apache.poi.poifs.filesystem.POIFSFileSystem;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayOutputStream;
+import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -29,11 +31,28 @@ class KnowledgeFileValidatorTest {
     }
 
     @Test
-    void shouldAcceptLegacyDoc() {
-        byte[] bytes = {(byte) 0xD0, (byte) 0xCF, 0x11, (byte) 0xE0,
-                (byte) 0xA1, (byte) 0xB1, 0x1A, (byte) 0xE1, 0x00};
-        assertType(new MockMultipartFile("file", "manual.doc", "application/msword", bytes),
+    void shouldAcceptLegacyDoc() throws Exception {
+        assertType(new MockMultipartFile(
+                        "file", "manual.doc", "application/msword", oleFile("WordDocument")),
                 KnowledgeFileType.DOC);
+    }
+
+    /** XLS 和 PPT 与 DOC 共用 OLE 文件头，但没有 WordDocument 流，不能伪装成旧版 Word。 */
+    @Test
+    void shouldRejectExcelAndPowerPointOleContainersRenamedAsDoc() throws Exception {
+        assertThrows(BusinessException.class, () -> validator.validate(new MockMultipartFile(
+                "file", "excel.doc", "application/octet-stream", oleFile("Workbook"))));
+        assertThrows(BusinessException.class, () -> validator.validate(new MockMultipartFile(
+                "file", "slides.doc", "application/octet-stream", oleFile("PowerPoint Document"))));
+    }
+
+    /** 只有 OLE 魔数但容器结构损坏的文件也不能被识别为 DOC。 */
+    @Test
+    void shouldRejectBrokenOleContainer() {
+        byte[] broken = {(byte) 0xD0, (byte) 0xCF, 0x11, (byte) 0xE0,
+                (byte) 0xA1, (byte) 0xB1, 0x1A, (byte) 0xE1, 0x00};
+        assertThrows(BusinessException.class, () -> validator.validate(new MockMultipartFile(
+                "file", "broken.doc", "application/msword", broken)));
     }
 
     @Test
@@ -127,6 +146,17 @@ class KnowledgeFileValidatorTest {
     private MockMultipartFile file(String name, String contentType, String content) {
         return new MockMultipartFile(
                 "file", name, contentType, content.getBytes(StandardCharsets.ISO_8859_1));
+    }
+
+    /** 创建包含指定根目录流的最小合法 OLE 容器，用于区分 Word、Excel 和 PowerPoint。 */
+    private byte[] oleFile(String streamName) throws Exception {
+        try (POIFSFileSystem fileSystem = new POIFSFileSystem();
+             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            fileSystem.getRoot().createDocument(
+                    streamName, new ByteArrayInputStream("content".getBytes(StandardCharsets.UTF_8)));
+            fileSystem.writeFilesystem(output);
+            return output.toByteArray();
+        }
     }
 
     private void assertType(MultipartFile file, KnowledgeFileType expected) {

@@ -49,6 +49,18 @@ public interface KnowledgeEntryMapper {
                     @Param("request") KnowledgeEntryCreateRequest request);
 
     /**
+     * 批量文件导入成功后插入一条待补充占位知识条目。
+     *
+     * <p>操作人字段当前阶段保持为空；其余非必填业务字段也保持 {@code NULL}，后续由 Excel
+     * 批量导入知识条目信息接口补全。</p>
+     */
+    int insertBatchPlaceholderEntry(
+            @Param("entryId") long entryId,
+            @Param("entryType") String entryType,
+            @Param("entryCode") String entryCode,
+            @Param("title") String title);
+
+    /**
      * 查询并锁定指定 ID 的正常知识条目，锁持续到当前事务结束。
      *
      * @return 正常条目 ID；不存在或已删除时返回 {@code null}

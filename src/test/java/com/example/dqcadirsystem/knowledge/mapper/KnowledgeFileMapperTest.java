@@ -1,6 +1,7 @@
 package com.example.dqcadirsystem.knowledge.mapper;
 
 import com.example.dqcadirsystem.knowledge.mapper.model.KnowledgeFileRow;
+import com.example.dqcadirsystem.knowledge.mapper.model.KnowledgeFilePreviewRow;
 import org.junit.jupiter.api.Test;
 import org.mybatis.spring.boot.test.autoconfigure.MybatisTest;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -75,5 +76,45 @@ class KnowledgeFileMapperTest {
         assertEquals(0, jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM knowledge_file WHERE entry_id = ? AND is_current = 1",
                 Integer.class, entryId));
+    }
+
+    /** 当前正常文件且所属条目正常时，才能按 fileId 取得预览定位信息。 */
+    @Test
+    void shouldSelectCurrentFileForPreview() {
+        KnowledgeFilePreviewRow row = mapper.selectCurrentPreviewById(2200000000000000001L);
+
+        assertEquals("2200000000000000001", row.fileId());
+        assertEquals("2100000000000000001", row.entryId());
+        assertEquals("pdf", row.fileType());
+        assertEquals(
+                "https://liliangda-oss-test.oss-cn-beijing.aliyuncs.com/knowledge/2100000000000000001/2200000000000000001.pdf",
+                row.fileUrl());
+    }
+
+    /** 替换后降级为历史文件的记录不能继续通过统一预览入口访问。 */
+    @Test
+    void shouldNotPreviewHistoricalFile() {
+        jdbcTemplate.update("UPDATE knowledge_file SET is_current = 0 WHERE id = ?",
+                2200000000000000001L);
+
+        assertNull(mapper.selectCurrentPreviewById(2200000000000000001L));
+    }
+
+    /** 已逻辑删除的文件即使仍保留当前标记，也不能继续预览。 */
+    @Test
+    void shouldNotPreviewDeletedFile() {
+        jdbcTemplate.update("UPDATE knowledge_file SET status = 0 WHERE id = ?",
+                2200000000000000001L);
+
+        assertNull(mapper.selectCurrentPreviewById(2200000000000000001L));
+    }
+
+    /** 文件正常但所属条目已删除时也必须拒绝预览。 */
+    @Test
+    void shouldNotPreviewFileOfDeletedEntry() {
+        jdbcTemplate.update("UPDATE knowledge_entry SET status = 0 WHERE id = ?",
+                2100000000000000001L);
+
+        assertNull(mapper.selectCurrentPreviewById(2200000000000000001L));
     }
 }

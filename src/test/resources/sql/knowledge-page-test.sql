@@ -17,6 +17,8 @@ CREATE TABLE knowledge_entry (
     info_status TINYINT NOT NULL DEFAULT 0,
     status TINYINT NOT NULL DEFAULT 1,
     delete_marker BIGINT NOT NULL DEFAULT 0,
+    created_by BIGINT,
+    updated_by BIGINT,
     created_at TIMESTAMP NOT NULL,
     updated_at TIMESTAMP NOT NULL,
     CONSTRAINT uk_entry_type_code_version_marker
@@ -42,7 +44,7 @@ CREATE TABLE knowledge_file (
 INSERT INTO knowledge_entry VALUES (
     2100000000000000001, 'DRAWING', 'DWG-HVAC-001', '总部办公楼暖通空调设计图1',
     '总部 暖通 空调', 'V1.0', '总部项目', DATE '2026-06-26', '图纸库', 'HVAC', '张工', '内部',
-    1, 1, 0, TIMESTAMP '2026-06-30 10:00:00', TIMESTAMP '2026-06-30 10:00:00'
+    1, 1, 0, NULL, NULL, TIMESTAMP '2026-06-30 10:00:00', TIMESTAMP '2026-06-30 10:00:00'
 );
 INSERT INTO knowledge_file VALUES (
     2200000000000000001, 2100000000000000001, '总部办公楼暖通空调设计图1.pdf', 'pdf', 2048000,
@@ -55,12 +57,13 @@ INSERT INTO knowledge_file VALUES (
 INSERT INTO knowledge_entry VALUES (
     2100000000000000002, 'CASE', 'CASE-001', '历史案例',
     '案例', 'V1.0', NULL, DATE '2026-06-27', '案例库', NULL, NULL, '内部',
-    1, 1, 0, TIMESTAMP '2026-06-30 11:00:00', TIMESTAMP '2026-06-30 11:00:00'
+    1, 1, 0, NULL, NULL, TIMESTAMP '2026-06-30 11:00:00', TIMESTAMP '2026-06-30 11:00:00'
 );
 
 -- 逻辑删除记录不应进入管理列表。
 INSERT INTO knowledge_entry VALUES (
     2100000000000000003, 'LAW', 'LAW-001', '已删除法规',
     '法规', 'V1.0', NULL, DATE '2026-06-28', '法规库', NULL, NULL, '公开',
-    1, 0, 2100000000000000003, TIMESTAMP '2026-06-30 12:00:00', TIMESTAMP '2026-06-30 12:00:00'
+    1, 0, 2100000000000000003, NULL, NULL,
+    TIMESTAMP '2026-06-30 12:00:00', TIMESTAMP '2026-06-30 12:00:00'
 );

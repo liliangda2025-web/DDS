@@ -119,13 +119,17 @@ public class GlobalExceptionHandler {
     /**
      * 处理 multipart 请求缺少必填文件字段的情况。
      *
-     * <p>文件接口固定使用名为 {@code file} 的表单字段。这里不返回 Spring 的内部绑定信息，
-     * 只给调用方一个稳定、可直接展示的参数错误提示。</p>
+     * <p>单文件接口使用 {@code file}，批量接口使用 {@code files} 和文本 part {@code entryType}。
+     * 这里不返回 Spring 的内部绑定信息，只给调用方一个稳定、可直接展示的参数错误提示。</p>
      */
     @ExceptionHandler(MissingServletRequestPartException.class)
     public ResponseEntity<ApiResponse<Void>> handleMissingRequestPart(
             MissingServletRequestPartException exception) {
-        return failure(CommonErrorCode.BAD_REQUEST, "缺少必填文件: " + exception.getRequestPartName());
+        String partName = exception.getRequestPartName();
+        String message = "file".equals(partName) || "files".equals(partName)
+                ? "缺少必填文件: " + partName
+                : "缺少必填参数: " + partName;
+        return failure(CommonErrorCode.BAD_REQUEST, message);
     }
 
     /**
@@ -136,7 +140,9 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<ApiResponse<Void>> handleMaxUploadSizeExceeded() {
-        return failure(CommonErrorCode.BAD_REQUEST, "文件大小不能超过500MB");
+        // 该异常既可能是单文件超过 500 MiB，也可能是批量 multipart 请求超过容器上限，
+        // 因此不能再只描述单文件限制。精确的单文件和批量总大小提示由业务层校验返回。
+        return failure(CommonErrorCode.BAD_REQUEST, "上传内容大小超过限制");
     }
 
     /**

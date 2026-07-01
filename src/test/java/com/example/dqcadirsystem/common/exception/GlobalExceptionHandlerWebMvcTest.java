@@ -139,7 +139,7 @@ class GlobalExceptionHandlerWebMvcTest {
         mockMvc.perform(get("/test/file-too-large"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(40000))
-                .andExpect(jsonPath("$.message").value("文件大小不能超过500MB"))
+                .andExpect(jsonPath("$.message").value("上传内容大小超过限制"))
                 .andExpect(jsonPath("$.data").value(nullValue()));
     }
 

@@ -29,7 +29,6 @@ public record KnowledgeEntryDetailRow(
         String originalFileName,
         String fileType,
         Long fileSize,
-        String fileUrl,
         String uploadStatus,
         LocalDateTime uploadedAt) {
 }

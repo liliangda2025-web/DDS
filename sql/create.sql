@@ -24,8 +24,8 @@ CREATE TABLE knowledge_entry
     status          TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1正常，0删除',
     delete_marker   BIGINT  NOT NULL DEFAULT 0 COMMENT '唯一键删除标记：有效记录为0，删除后为当前记录ID',
 
-    created_by      BIGINT COMMENT '创建人ID，当前阶段可为空或预留',
-    updated_by      BIGINT COMMENT '修改人ID，当前阶段可为空或预留',
+    created_by      BIGINT COMMENT '创建人ID，当前阶段为空，接入认证后写入',
+    updated_by      BIGINT COMMENT '修改人ID，当前阶段为空，接入认证后写入',
     created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
 
@@ -61,7 +61,7 @@ CREATE TABLE knowledge_file
 
     is_current         TINYINT NOT NULL DEFAULT 1 COMMENT '是否当前文件：1是，0否',
 
-    uploaded_by        BIGINT COMMENT '上传人ID，当前阶段可为空或预留',
+    uploaded_by        BIGINT COMMENT '上传人ID，当前阶段为空，接入认证后写入',
     uploaded_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '上传时间',
 
     status             TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1正常，0删除',

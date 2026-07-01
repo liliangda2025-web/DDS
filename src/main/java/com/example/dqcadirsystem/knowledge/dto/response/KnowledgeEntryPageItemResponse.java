@@ -12,7 +12,8 @@ import java.time.LocalDateTime;
  * 知识条目管理列表中的一行响应数据。
  *
  * <p>ID 使用 String，避免 JavaScript 无法精确表示 19 位 BIGINT。时间格式通过 Jackson 注解固定为
- * 接口文档中的 {@code yyyy-MM-dd HH:mm:ss}。</p>
+ * 接口文档中的 {@code yyyy-MM-dd HH:mm:ss}。列表只返回文件概要和 {@code fileId}，不返回可直接访问的
+ * 文件 URL；前端预览时必须调用统一文件预览接口。</p>
  */
 public record KnowledgeEntryPageItemResponse(
         String entryId,
@@ -30,7 +31,6 @@ public record KnowledgeEntryPageItemResponse(
         Integer infoStatus,
         String infoStatusName,
         String originalFileName,
-        String fileUrl,
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime createdAt,
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime updatedAt) {
 
@@ -56,7 +56,6 @@ public record KnowledgeEntryPageItemResponse(
                 row.infoStatus(),
                 KnowledgeEntryInfoStatus.labelOf(row.infoStatus()),
                 row.originalFileName(),
-                row.fileUrl(),
                 row.createdAt(),
                 row.updatedAt());
     }

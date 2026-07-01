@@ -71,7 +71,6 @@ class KnowledgeEntryControllerTest {
                 1,
                 "已完善",
                 "总部办公楼暖通空调设计图1.pdf",
-                "/uploads/knowledge/2100000000000000001.pdf",
                 LocalDateTime.of(2026, 6, 30, 10, 0),
                 LocalDateTime.of(2026, 6, 30, 10, 0));
         when(knowledgeEntryService.pageEntries(any(KnowledgeEntryPageRequest.class)))
@@ -90,6 +89,7 @@ class KnowledgeEntryControllerTest {
                 .andExpect(jsonPath("$.data.pages").value(1))
                 .andExpect(jsonPath("$.data.records[0].entryId").value("2100000000000000001"))
                 .andExpect(jsonPath("$.data.records[0].entryTypeName").value("图纸库"))
+                .andExpect(jsonPath("$.data.records[0].fileUrl").doesNotExist())
                 .andExpect(jsonPath("$.data.records[0].createdAt").value("2026-06-30 10:00:00"));
     }
 
@@ -125,7 +125,6 @@ class KnowledgeEntryControllerTest {
                 "总部办公楼暖通空调设计图1.pdf",
                 "pdf",
                 2048000L,
-                "/uploads/knowledge/2100000000000000001.pdf",
                 "success",
                 LocalDateTime.of(2026, 6, 30, 10, 0));
         KnowledgeEntryDetailResponse detail = new KnowledgeEntryDetailResponse(
@@ -143,6 +142,7 @@ class KnowledgeEntryControllerTest {
                 .andExpect(jsonPath("$.data.entryTypeName").value("图纸库"))
                 .andExpect(jsonPath("$.data.infoStatusName").value("已完善"))
                 .andExpect(jsonPath("$.data.currentFile.fileId").value("2200000000000000001"))
+                .andExpect(jsonPath("$.data.currentFile.fileUrl").doesNotExist())
                 .andExpect(jsonPath("$.data.currentFile.fileSize").value(2048000))
                 .andExpect(jsonPath("$.data.currentFile.uploadedAt").value("2026-06-30 10:00:00"));
     }

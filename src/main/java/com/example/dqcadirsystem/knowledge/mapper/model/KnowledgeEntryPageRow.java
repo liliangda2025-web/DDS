@@ -23,7 +23,6 @@ public record KnowledgeEntryPageRow(
         String authorName,
         Integer infoStatus,
         String originalFileName,
-        String fileUrl,
         LocalDateTime createdAt,
         LocalDateTime updatedAt) {
 }

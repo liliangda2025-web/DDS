@@ -3,9 +3,10 @@ spring:
     name: DQCADIRSystem
   servlet:
     multipart:
-      # 单个业务文件最大允许 500 MiB；请求上限额外预留 multipart 边界和请求头空间。
+      # 单个业务文件最大允许 500 MiB。
       max-file-size: 500MB
-      max-request-size: 510MB
+      # 批量上传业务总大小限制为 1 GiB；这里额外预留 multipart 边界和请求头空间。
+      max-request-size: 1030MB
       # 0 表示 multipart 内容直接写入临时磁盘，避免大文件整体驻留 JVM 堆内存。
       file-size-threshold: 0
   datasource:

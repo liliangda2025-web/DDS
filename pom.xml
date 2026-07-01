@@ -57,6 +57,15 @@
             <artifactId>alibabacloud-oss-v2</artifactId>
             <version>0.5.0</version>
         </dependency>
+        <!--
+            用事件式 POIFS 读取旧版 Office OLE 容器，确认 .doc 文件确实包含 WordDocument 流。
+            这里只需要基础 poi 模块，不引入面向旧版 Word 文档内容解析的 poi-scratchpad。
+        -->
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi</artifactId>
+            <version>5.5.1</version>
+        </dependency>
 
         <dependency>
             <groupId>com.mysql</groupId>

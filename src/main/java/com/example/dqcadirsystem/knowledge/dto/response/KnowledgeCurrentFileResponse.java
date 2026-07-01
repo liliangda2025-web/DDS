@@ -9,14 +9,14 @@ import java.time.LocalDateTime;
  * 知识条目详情中的当前文件信息。
  *
  * <p>文件 ID 与条目 ID 一样以字符串返回，保证前端可以无损处理数据库 BIGINT。文件大小的单位固定为字节，
- * 前端可按展示需要换算为 KB、MB 等单位。</p>
+ * 前端可按展示需要换算为 KB、MB 等单位。详情只提供文件元数据，不提供访问 URL；文件内容访问统一通过
+ * {@code fileId} 调用预览接口。</p>
  */
 public record KnowledgeCurrentFileResponse(
         String fileId,
         String originalFileName,
         String fileType,
         Long fileSize,
-        String fileUrl,
         String uploadStatus,
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime uploadedAt) {
 
@@ -31,7 +31,6 @@ public record KnowledgeCurrentFileResponse(
                 row.originalFileName(),
                 row.fileType(),
                 row.fileSize(),
-                row.fileUrl(),
                 row.uploadStatus(),
                 row.uploadedAt());
     }

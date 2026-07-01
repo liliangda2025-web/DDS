@@ -76,7 +76,6 @@
                e.author_name,
                e.info_status,
                f.original_file_name,
-               f.file_url,
                e.created_at,
                e.updated_at
         <include refid="pageFromAndWhere"/>
@@ -108,7 +107,6 @@
                f.original_file_name,
                f.file_ext AS file_type,
                f.file_size,
-               f.file_url,
                f.upload_status,
                f.uploaded_at
         FROM knowledge_entry e
@@ -149,6 +147,20 @@
             #{request.releaseDate}, #{request.systemSource}, #{request.professionCode},
             #{request.authorName}, #{request.secretLevel},
             1, 1, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        )
+    </insert>
+
+    <!--
+        批量文件导入的占位条目只填写后续流程定位所需的最小字段。
+        created_by、updated_by 当前阶段为空，接入认证后再由后端写入当前用户 ID。
+    -->
+    <insert id="insertBatchPlaceholderEntry">
+        INSERT INTO knowledge_entry (
+            id, entry_type, entry_code, title, version, info_status, status,
+            delete_marker, created_by, updated_by, created_at, updated_at
+        ) VALUES (
+            #{entryId}, #{entryType}, #{entryCode}, #{title}, 'TEMP', 0, 1,
+            0, NULL, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
         )
     </insert>
 

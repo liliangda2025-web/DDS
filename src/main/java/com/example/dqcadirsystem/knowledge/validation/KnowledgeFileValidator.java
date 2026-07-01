@@ -3,6 +3,7 @@ package com.example.dqcadirsystem.knowledge.validation;
 import com.example.dqcadirsystem.common.exception.BusinessException;
 import com.example.dqcadirsystem.common.exception.CommonErrorCode;
 import com.example.dqcadirsystem.knowledge.enums.KnowledgeFileType;
+import org.apache.poi.poifs.eventfilesystem.POIFSReader;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
@@ -11,6 +12,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipException;
@@ -101,9 +103,23 @@ public class KnowledgeFileValidator {
         return indexOf(header, "%PDF-".getBytes(StandardCharsets.US_ASCII)) >= 0;
     }
 
-    /** 旧版 DOC 使用 OLE Compound File 固定的八字节魔数。 */
+    /**
+     * 旧版 DOC 使用 OLE Compound File 容器，但 Excel 和 PowerPoint 旧格式也使用相同魔数。
+     * 因此先检查容器头，再用 POI 的事件式读取器确认根目录中存在 Word 主文档流
+     * {@code WordDocument}。事件式读取不会把整个最大 500 MiB 文件驻留在 JVM 堆内存中。
+     */
     private boolean isLegacyWord(MultipartFile file) throws IOException {
-        return startsWith(readPrefix(file, DOC_MAGIC.length), DOC_MAGIC);
+        if (!startsWith(readPrefix(file, DOC_MAGIC.length), DOC_MAGIC)) {
+            return false;
+        }
+
+        AtomicBoolean hasWordDocumentStream = new AtomicBoolean(false);
+        POIFSReader reader = new POIFSReader();
+        reader.registerListener(event -> hasWordDocumentStream.set(true), "WordDocument");
+        try (InputStream inputStream = file.getInputStream()) {
+            reader.read(inputStream);
+        }
+        return hasWordDocumentStream.get();
     }
 
     /**

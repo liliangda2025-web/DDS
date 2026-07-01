@@ -59,4 +59,24 @@
           AND status = 1
     </select>
 
+    <!--
+        文件预览必须以 fileId 精确定位，并且只允许正常知识条目下的当前正常文件。
+        文件 URL 只在本查询和上传结果中读取，不再通过列表、详情或检索结果直接暴露。
+    -->
+    <select id="selectCurrentPreviewById"
+            resultType="com.example.dqcadirsystem.knowledge.mapper.model.KnowledgeFilePreviewRow">
+        SELECT CONCAT('', f.id) AS file_id,
+               CONCAT('', f.entry_id) AS entry_id,
+               f.original_file_name,
+               f.file_ext AS file_type,
+               f.file_url
+        FROM knowledge_file f
+        INNER JOIN knowledge_entry e
+                ON e.id = f.entry_id
+               AND e.status = 1
+        WHERE f.id = #{fileId}
+          AND f.status = 1
+          AND f.is_current = 1
+    </select>
+
 </mapper>

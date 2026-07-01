@@ -222,4 +222,72 @@
           AND status = 1
     </update>
 
+    <!--
+        补充模板只查询待补充条目及其当前上传成功文件。关联使用确定性子查询，即使历史异常数据中
+        同时存在多条当前文件，也只会选择上传时间最新、ID 最大的一条，确保一个条目只导出一行。
+        投影中不包含 file_url，从 SQL 层保证公共对象地址不会进入补充模板。
+    -->
+    <sql id="pendingSupplementSelect">
+        SELECT CONCAT('', e.id) AS entry_id,
+               CONCAT('', f.id) AS file_id,
+               f.original_file_name,
+               f.file_ext AS file_type,
+               f.file_size,
+               f.uploaded_at,
+               f.upload_status,
+               e.entry_type,
+               e.entry_code,
+               e.title,
+               e.keywords,
+               e.version,
+               e.project_name,
+               e.release_date,
+               e.system_source,
+               e.profession_code,
+               e.author_name,
+               e.secret_level
+        FROM knowledge_entry e
+        INNER JOIN knowledge_file f
+                ON f.id = (
+                    SELECT current_file.id
+                    FROM knowledge_file current_file
+                    WHERE current_file.entry_id = e.id
+                      AND current_file.status = 1
+                      AND current_file.is_current = 1
+                      AND current_file.upload_status = 'success'
+                    ORDER BY current_file.uploaded_at DESC, current_file.id DESC
+                    LIMIT 1
+                )
+        WHERE e.status = 1
+          AND e.info_status = 0
+    </sql>
+
+    <select id="selectPendingSupplementByEntryIds"
+            resultType="com.example.dqcadirsystem.knowledge.mapper.model.KnowledgeSupplementTemplateRow">
+        <include refid="pendingSupplementSelect"/>
+          AND e.id IN
+        <foreach collection="entryIds" item="entryId" open="(" separator="," close=")">
+            #{entryId}
+        </foreach>
+    </select>
+
+    <select id="selectPendingSupplementByFilter"
+            resultType="com.example.dqcadirsystem.knowledge.mapper.model.KnowledgeSupplementTemplateRow">
+        <include refid="pendingSupplementSelect"/>
+        <if test="request.entryType != null">
+          AND e.entry_type = #{request.entryType}
+        </if>
+        <if test="request.fileName != null">
+          AND f.original_file_name LIKE CONCAT('%', #{request.fileName}, '%')
+        </if>
+        <if test="request.uploadStartTime != null">
+          AND f.uploaded_at <![CDATA[ >= ]]> #{request.uploadStartTime}
+        </if>
+        <if test="request.uploadEndTime != null">
+          AND f.uploaded_at <![CDATA[ <= ]]> #{request.uploadEndTime}
+        </if>
+        ORDER BY f.uploaded_at DESC, f.id DESC
+        LIMIT #{limit}
+    </select>
+
 </mapper>

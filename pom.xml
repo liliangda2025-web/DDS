@@ -58,12 +58,12 @@
             <version>0.5.0</version>
         </dependency>
         <!--
-            用事件式 POIFS 读取旧版 Office OLE 容器，确认 .doc 文件确实包含 WordDocument 流。
-            这里只需要基础 poi 模块，不引入面向旧版 Word 文档内容解析的 poi-scratchpad。
+            Apache POI OOXML 模块用于生成知识条目信息补充模板；它会传递引入基础 poi 模块，
+            因而现有的事件式 POIFS 旧版 DOC 结构校验仍可继续使用。
         -->
         <dependency>
             <groupId>org.apache.poi</groupId>
-            <artifactId>poi</artifactId>
+            <artifactId>poi-ooxml</artifactId>
             <version>5.5.1</version>
         </dependency>
 

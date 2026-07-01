@@ -4,8 +4,10 @@ import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryCreateReque
 import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryBusinessKey;
 import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryPageRequest;
 import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeEntryUpdateRequest;
+import com.example.dqcadirsystem.knowledge.dto.request.KnowledgeSupplementTemplateExportRequest;
 import com.example.dqcadirsystem.knowledge.mapper.model.KnowledgeEntryDetailRow;
 import com.example.dqcadirsystem.knowledge.mapper.model.KnowledgeEntryPageRow;
+import com.example.dqcadirsystem.knowledge.mapper.model.KnowledgeSupplementTemplateRow;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -88,4 +90,21 @@ public interface KnowledgeEntryMapper {
      * @return 实际失效的文件数量；条目没有文件时可以为 0
      */
     int logicalDeleteFilesByEntryId(@Param("entryId") Long entryId);
+
+    /**
+     * 精确查询指定 ID 对应的可导出待补充记录。
+     *
+     * <p>调用方会比较查询数量与请求 ID 数量；任一条目不符合导出条件时，整个导出请求失败。</p>
+     */
+    List<KnowledgeSupplementTemplateRow> selectPendingSupplementByEntryIds(
+            @Param("entryIds") List<Long> entryIds);
+
+    /**
+     * 按类型、文件名和上传时间筛选可导出待补充记录。
+     *
+     * @param limit 实际查询上限；业务层传 5001，用于识别是否超过 5000 条导出上限
+     */
+    List<KnowledgeSupplementTemplateRow> selectPendingSupplementByFilter(
+            @Param("request") KnowledgeSupplementTemplateExportRequest request,
+            @Param("limit") int limit);
 }
